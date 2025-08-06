@@ -1,0 +1,187 @@
+/* Base Styles */
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin: 40px;
+  background-color: #f4f9ff;
+  color: #2c3e50;
+}
+
+h1 {
+  color: #1a2b3c;
+}
+
+/* Form Container */
+form {
+  background-color: #ffffff;
+  padding: 25px;
+  border-radius: 190px;
+  width: 420px;
+  box-shadow: 0 9px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Labels */
+label {
+  display: block;
+  margin-top: 40px;
+  font-weight: 600;
+}
+
+/* Inputs & Selects */
+.textInputWrapper {
+  position: relative;
+  width: 100%;
+  margin: 12px 0;
+  --accent-color: #4fc3f7;
+}
+
+.textInputWrapper:before,
+.textInputWrapper:after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  pointer-events: none;
+  width: 100%;
+  z-index: 4;
+}
+
+.textInputWrapper:before {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  transition: border-color 0.2s ease;
+}
+
+.textInputWrapper:after {
+  border-bottom: 2px solid var(--accent-color);
+  transform: scaleX(0);
+  transition: transform 0.25s ease;
+}
+
+.textInputWrapper:focus-within:before {
+  border-bottom-color: var(--accent-color);
+}
+
+.textInputWrapper:focus-within:after {
+  transform: scaleX(1);
+}
+
+.textInputWrapper .textInput {
+  background-color: #f0f4f8;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px;
+  width: 100%;
+  border: none;
+  border-radius: 5px 5px 0 0;
+  box-shadow: 0 00px 5px rgba(0, 0, 0, 0.1);
+}
+
+.textInputWrapper .textInput::placeholder {
+  color: #999;
+  transition: opacity 0.25s ease;
+}
+
+.textInputWrapper:focus-within .textInput::placeholder {
+  opacity: 0;
+}
+
+.textInputWrapper .textInput:focus,
+.textInputWrapper .textInput:active {
+  outline: none;
+  background-color: #e6f2fb;
+}
+
+/* Button */
+button {
+  cursor: pointer;
+  font-weight: 700;
+  transition: all 0.2s;
+  padding: 26px 30px;
+  border-radius: 60px;
+  background: #4fc3f7;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  color: white;
+  margin-top: 20px;
+}
+
+button:hover {
+  background: #29b6f6;
+}
+
+button > svg {
+  width: 24px;
+  margin-left: 10px;
+  transition: transform 0.3s ease-in-out;
+}
+
+button:hover svg {
+  transform: translateX(5px);
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+/* Checkbox Styles */
+.my-form {
+  --_clr-primary: #666;
+  --_clr-hover: #4fc3f7;
+  --_clr-checked: #1976d2;
+}
+
+.my-form > div {
+  --_clr-current: var(--_clr-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 10px;
+}
+
+.my-form label {
+  cursor: pointer;
+  color: var(--_clr-current);
+  transition: color 150ms ease-in-out;
+}
+
+.my-form input[type="checkbox"] {
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: transparent;
+  border: 1px solid var(--_clr-current);
+  border-radius: 4px;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.my-form input[type="checkbox"]::after {
+  content: "✔";
+  opacity: 0;
+  transition: opacity 150ms ease-in-out;
+  color: var(--_clr-checked);
+  font-size: 1rem;
+}
+
+.my-form input[type="checkbox"]:hover,
+.my-form input[type="checkbox"]:focus-visible {
+  --_clr-current: var(--_clr-hover);
+}
+
+.my-form input[type="checkbox"]:hover::after,
+.my-form input[type="checkbox"]:focus-visible::after {
+  opacity: 0.5;
+  color: var(--_clr-hover);
+}
+
+.my-form input[type="checkbox"]:checked {
+  --_clr-current: var(--_clr-checked);
+}
+
+.my-form input[type="checkbox"]:checked::after {
+  opacity: 1;
+}

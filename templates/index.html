@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>El-Hady Clinic</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
+    <form action="/submit" method="POST">
+        <label>الاسم</label><input type="text" name="name" required><br>
+        <label>العمر</label><input type="number" name="age" required><br>
+        <label>بماذا تشعر؟</label><input type="text" name="pain" required><br>
+        <label>هل تعاني من احدي هذه الأمراض؟</label><br>
+        <input type="checkbox" name="conditions" value="Diabetes"> السكر<br>
+        <input type="checkbox" name="conditions" value="High Blood Pressure"> الضغط<br>
+        <input type="checkbox" name="conditions" value="Old Injury">اصابات قديمه او ما شابه<br>
+        <label>اختر ميعاد الحجز</label>
+        <select name="appointment" required>
+            {% for time in available_times %}
+                <option value="{{ time }}">{{ time }}</option>
+            {% endfor %}
+        </select><br><br>
+        <button type="submit">Book</button>
+    </form>
+</body>
+</html>
