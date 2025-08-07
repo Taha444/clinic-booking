@@ -1,14 +1,14 @@
 import os
-import sqlite3
 from flask import Flask, render_template, request, redirect
+from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField
 from wtforms.validators import DataRequired
-import smtplib
-from email.mime.text import MIMEText
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
+import smtplib
+from email.mime.text import MIMEText
 
 # تحميل متغيرات البيئة
 load_dotenv()
@@ -16,7 +16,27 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
+# إعداد قاعدة البيانات باستخدام SQLAlchemy
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
 csrf = CSRFProtect(app)
+
+# نموذج قاعدة البيانات
+class Booking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    age = db.Column(db.Integer, nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
+    pain = db.Column(db.String(200), nullable=False)
+    conditions = db.Column(db.String(200), nullable=True)
+    date = db.Column(db.String(20), nullable=False)
+    appointment = db.Column(db.String(20), nullable=False)
+
+# إنشاء قاعدة البيانات
+with app.app_context():
+    db.create_all()
 
 # كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
 all_slots = []
@@ -34,14 +54,10 @@ class BookingForm(FlaskForm):
     appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
     submit = SubmitField('احجز')
 
-# دالة استخراج المواعيد المحجوزة من قاعدة البيانات
+# استخراج المواعيد المحجوزة من قاعدة البيانات
 def get_booked_slots(date):
-    conn = sqlite3.connect('clinic.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT appointment FROM bookings WHERE date = ?", (date,))
-    booked = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return booked
+    bookings = Booking.query.filter_by(date=date).all()
+    return [b.appointment for b in bookings]
 
 @app.route('/')
 def index():
@@ -69,19 +85,21 @@ def submit():
     appointment = request.form['appointment']
 
     # منع الحجز المكرر
-    booked = get_booked_slots(date)
-    if appointment in booked:
+    if appointment in get_booked_slots(date):
         return "هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر."
 
     # تخزين الحجز في قاعدة البيانات
-    conn = sqlite3.connect('clinic.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO bookings (name, age, phone, pain, conditions, date, appointment)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (name, age, phone, pain, ', '.join(conditions), date, appointment))
-    conn.commit()
-    conn.close()
+    new_booking = Booking(
+        name=name,
+        age=age,
+        phone=phone,
+        pain=pain,
+        conditions=', '.join(conditions),
+        date=date,
+        appointment=appointment
+    )
+    db.session.add(new_booking)
+    db.session.commit()
 
     # إرسال بريد إلكتروني
     message = f"""
@@ -116,3 +134,4 @@ def send_email(to, subject, body):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
