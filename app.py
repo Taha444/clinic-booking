@@ -9,18 +9,31 @@ import pytz
 from dotenv import load_dotenv
 import smtplib
 from email.mime.text import MIMEText
+from werkzeug.security import check_password_hash
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 # تحميل متغيرات البيئة
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
-# إعداد قاعدة البيانات باستخدام SQLAlchemy
+# إعدادات حماية الجلسة
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# إعداد قاعدة البيانات
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# حماية CSRF
 csrf = CSRFProtect(app)
+
+# حماية من السبام
+limiter = Limiter(get_remote_address, app=app)
 
 # نموذج قاعدة البيانات
 class Booking(db.Model):
@@ -59,7 +72,7 @@ class LoginForm(FlaskForm):
     password = PasswordField('كلمة السر', validators=[DataRequired()])
     submit = SubmitField('تسجيل الدخول')
 
-# استخراج المواعيد المحجوزة من قاعدة البيانات
+# استخراج المواعيد المحجوزة
 def get_booked_slots(date):
     bookings = Booking.query.filter_by(date=date).all()
     return [b.appointment for b in bookings]
@@ -89,7 +102,11 @@ def available_slots():
     return jsonify({'available_times': available_times})
 
 @app.route('/submit', methods=['POST'])
+@limiter.limit("5 per minute")
 def submit():
+    if not request.form:
+        return "طلب غير صالح", 400
+
     name = request.form['name']
     age = request.form['age']
     phone = request.form['phone']
@@ -98,11 +115,9 @@ def submit():
     conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
 
-    # منع الحجز المكرر
     if appointment in get_booked_slots(date):
         return "هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر."
 
-    # تخزين الحجز في قاعدة البيانات
     new_booking = Booking(
         name=name,
         age=age,
@@ -115,7 +130,6 @@ def submit():
     db.session.add(new_booking)
     db.session.commit()
 
-    # إرسال بريد إلكتروني
     message = f"""
     New Patient Booking:
     Name: {name}
@@ -139,7 +153,7 @@ def login():
     form = LoginForm()
     error = None
     if form.validate_on_submit():
-        if form.username.data == os.getenv("ADMIN_USERNAME") and form.password.data == os.getenv("ADMIN_PASSWORD"):
+        if form.username.data == os.getenv("ADMIN_USERNAME") and check_password_hash(os.getenv("ADMIN_PASSWORD"), form.password.data):
             session['admin_logged_in'] = True
             return redirect('/bookings')
         else:
