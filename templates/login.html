@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>تسجيل الدخول</title>
+</head>
+<body>
+    <h2>تسجيل الدخول كأدمن</h2>
+    {% if error %}
+        <p style="color:red;">{{ error }}</p>
+    {% endif %}
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <label>اسم المستخدم</label>{{ form.username }}
+        <label>كلمة السر</label>{{ form.password }}
+        {{ form.submit }}
+    </form>
+</body>
+</html>
