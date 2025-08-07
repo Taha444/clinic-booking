@@ -152,12 +152,21 @@ def confirmation():
 def login():
     form = LoginForm()
     error = None
+
+    # جلب اسم المستخدم وكلمة السر المشفرة من البيئة
+    env_username = os.getenv("ADMIN_USERNAME")
+    env_password_hash = os.getenv("ADMIN_PASSWORD")
+
     if form.validate_on_submit():
-        if form.username.data == os.getenv("ADMIN_USERNAME") and check_password_hash(os.getenv("ADMIN_PASSWORD"), form.password.data):
+        input_username = form.username.data
+        input_password = form.password.data
+
+        if input_username == env_username and check_password_hash(env_password_hash, input_password):
             session['admin_logged_in'] = True
             return redirect('/bookings')
         else:
             error = "بيانات الدخول غير صحيحة"
+
     return render_template('login.html', form=form, error=error)
 
 @app.route('/logout')
