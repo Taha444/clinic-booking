@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY")  # مفتاح سري لحماية CSRF
 
 # كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
 all_slots = []
@@ -23,6 +24,15 @@ for hour in range(3, 11):
 # تخزين المواعيد المحجوزة حسب التاريخ
 booked_slots_by_date = {}
 
+class BookingForm(FlaskForm):
+    name = StringField('الاسم', validators=[DataRequired()])
+    age = IntegerField('العمر', validators=[DataRequired()])
+    phone = TelField('رقم الهاتف', validators=[DataRequired()])
+    pain = StringField('بماذا تشعر؟', validators=[DataRequired()])
+    date = DateField('تاريخ الحجز', validators=[DataRequired()])
+    appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
+    submit = SubmitField('احجز')
+
 @app.route('/')
 def index():
     egypt_time = datetime.now(pytz.timezone('Africa/Cairo'))
@@ -32,7 +42,11 @@ def index():
     booked = booked_slots_by_date.get(date, [])
     available_times = [slot for slot in all_slots if slot not in booked]
 
-    return render_template('index.html', available_times=available_times, selected_date=date)
+    form = BookingForm()
+    form.appointment.choices = [(time, time) for time in available_times]
+    form.date.data = datetime.strptime(date, '%Y-%m-%d')
+
+    return render_template('index.html', form=form, available_times=available_times, selected_date=date)
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -68,7 +82,7 @@ def confirmation():
 
 def send_email(to, subject, body):
     sender = "elhadyclinic1@gmail.com"
-    password = os.getenv("EMAIL_PASSWORD")  # تم استبدال كلمة السر بمتغير بيئي
+    password = os.getenv("EMAIL_PASSWORD")
 
     msg = MIMEText(body)
     msg['Subject'] = subject
