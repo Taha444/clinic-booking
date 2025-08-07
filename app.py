@@ -1,8 +1,8 @@
 import os
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
-from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField
+from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField
 from wtforms.validators import DataRequired
 from datetime import datetime
 import pytz
@@ -53,6 +53,12 @@ class BookingForm(FlaskForm):
     date = DateField('تاريخ الحجز', validators=[DataRequired()])
     appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
     submit = SubmitField('احجز')
+
+# نموذج تسجيل الدخول
+class LoginForm(FlaskForm):
+    username = StringField('اسم المستخدم', validators=[DataRequired()])
+    password = PasswordField('كلمة السر', validators=[DataRequired()])
+    submit = SubmitField('تسجيل الدخول')
 
 # استخراج المواعيد المحجوزة من قاعدة البيانات
 def get_booked_slots(date):
@@ -119,6 +125,30 @@ def submit():
 @app.route('/confirmation')
 def confirmation():
     return render_template('confirmation.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    error = None
+    if form.validate_on_submit():
+        if form.username.data == os.getenv("ADMIN_USERNAME") and form.password.data == os.getenv("ADMIN_PASSWORD"):
+            session['admin_logged_in'] = True
+            return redirect('/bookings')
+        else:
+            error = "بيانات الدخول غير صحيحة"
+    return render_template('login.html', form=form, error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('admin_logged_in', None)
+    return redirect('/login')
+
+@app.route('/bookings')
+def bookings():
+    if not session.get('admin_logged_in'):
+        return redirect('/login')
+    bookings = Booking.query.all()
+    return render_template('bookings.html', bookings=bookings)
 
 def send_email(to, subject, body):
     sender = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
