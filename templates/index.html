@@ -1,39 +1,60 @@
-
-<form action="/submit" method="POST">
-    <label>الاسم:</label>
-    <input type="text" name="name" required><br>
-
-    <label>العمر:</label>
-    <input type="number" name="age" required><br>
-
-    <label>ما الذي يؤلمك؟</label>
-    <input type="text" name="pain" required><br>
-
-    <label>الأمراض الإضافية:</label><br>
-    <input type="checkbox" name="conditions" value="Diabetes"> سكري<br>
-    <input type="checkbox" name="conditions" value="High Blood Pressure"> ضغط دم مرتفع<br>
-    <input type="checkbox" name="conditions" value="Old Injury"> إصابة قديمة<br>
-
-    <label>رقم الهاتف:</label>
-    <input type="tel" name="phone" required><br>
-
-    <label>اختر التاريخ:</label>
-    <input type="date" name="date" min="2025-08-07" required><br>
-
-    <label>اختر الوقت:</label>
-    <select name="appointment" required>
-        <option value="3:00 PM">3:00 PM</option><option value="4:00 PM">4:00 PM</option><option value="5:00 PM">5:00 PM</option><option value="6:00 PM">6:00 PM</option><option value="7:00 PM">7:00 PM</option><option value="8:00 PM">8:00 PM</option><option value="9:00 PM">9:00 PM</option><option value="10:00 PM">10:00 PM</option>
-    </select><br><br>
-
-    <button type="submit">احجز</button>
-</form>
-
-<script>
-document.querySelector('input[name="date"]').addEventListener('change', function() {
-    const selectedDate = new Date(this.value);
-    if (selectedDate.getDay() === 5) {
-        alert("العيادة مغلقة يوم الجمعة. يرجى اختيار يوم آخر.");
-        this.value = '';
-    }
-});
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>El-Hady Clinic</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        // Prevent selecting Fridays
+        function disableFridays() {
+            const dateInput = document.getElementById('date');
+            dateInput.addEventListener('input', function() {
+                const selectedDate = new Date(this.value);
+                if (selectedDate.getDay() === 5) {
+                    alert("العيادة مغلقة يوم الجمعة، يرجى اختيار يوم آخر.");
+                    this.value = '';
+                }
+            });
+        }
+        window.onload = disableFridays;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
+        <form action="/submit" method="POST">
+            <label>الاسم</label><input type="text" name="name" required>
+            <label>العمر</label><input type="number" name="age" required>
+            <label>رقم الهاتف</label><input type="tel" name="phone" required>
+            <label>بماذا تشعر؟</label><input type="text" name="pain" required>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="conditions" value="Diabetes"> السكر</label>
+                <label><input type="checkbox" name="conditions" value="High Blood Pressure"> الضغط</label>
+                <label><input type="checkbox" name="conditions" value="Old Injury"> إصابة قديمة</label>
+            </div>
+            <label>اختر تاريخ الحجز</label>
+            <input type="date" id="date" name="date" required min="2025-08-07">
+            <label>اختر ميعاد الحجز</label>
+            <select name="appointment" required>
+                <option value="3:00 PM">3:00 PM</option>
+                <option value="3:30 PM">3:30 PM</option>
+                <option value="4:00 PM">4:00 PM</option>
+                <option value="4:30 PM">4:30 PM</option>
+                <option value="5:00 PM">5:00 PM</option>
+                <option value="5:30 PM">5:30 PM</option>
+                <option value="6:00 PM">6:00 PM</option>
+                <option value="6:30 PM">6:30 PM</option>
+                <option value="7:00 PM">7:00 PM</option>
+                <option value="7:30 PM">7:30 PM</option>
+                <option value="8:00 PM">8:00 PM</option>
+                <option value="8:30 PM">8:30 PM</option>
+                <option value="9:00 PM">9:00 PM</option>
+                <option value="9:30 PM">9:30 PM</option>
+                <option value="10:00 PM">10:00 PM</option>
+            </select>
+            <button type="submit">Book</button>
+        </form>
+    </div>
+</body>
+</html>
