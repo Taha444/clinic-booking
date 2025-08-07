@@ -1,0 +1,16 @@
+ <!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>جميع الحجوزات</title>
+</head>
+<body>
+    <h2>جميع الحجوزات</h2>
+    <a href="/logout">تسجيل الخروج</a>
+    <ul>
+        {% for b in bookings %}
+            <li>{{ b.name }} - {{ b.date }} - {{ b.appointment }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
