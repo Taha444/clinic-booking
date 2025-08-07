@@ -17,6 +17,8 @@ def index():
 def submit():
     name = request.form['name']
     age = request.form['age']
+    phone = request.form['phone']
+    date = request.form['date']
     pain = request.form['pain']
     conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
@@ -28,9 +30,11 @@ def submit():
     New Patient Booking:
     Name: {name}
     Age: {age}
+    Phone: {phone}
+    Date: {date}
     Pain: {pain}
     Conditions: {', '.join(conditions)}
-    Appointment: {appointment}
+    Appointment Time: {appointment}
     """
 
     # Send email
