@@ -2,3 +2,4 @@ Flask
 gunicorn
 pytz
 python-dotenv
+Flask-WTF
