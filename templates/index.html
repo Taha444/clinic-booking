@@ -3,25 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <title>El-Hady Clinic</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
-    <form action="/submit" method="POST">
-        <label>الاسم</label><input type="text" name="name" required><br>
-        <label>العمر</label><input type="number" name="age" required><br>
-        <label>بماذا تشعر؟</label><input type="text" name="pain" required><br>
-        <label>هل تعاني من احدي هذه الأمراض؟</label><br>
-        <input type="checkbox" name="conditions" value="Diabetes"> السكر<br>
-        <input type="checkbox" name="conditions" value="High Blood Pressure"> الضغط<br>
-        <input type="checkbox" name="conditions" value="Old Injury">اصابات قديمه او ما شابه<br>
-        <label>اختر ميعاد الحجز</label>
-        <select name="appointment" required>
-            {% for time in available_times %}
-                <option value="{{ time }}">{{ time }}</option>
-            {% endfor %}
-        </select><br><br>
-        <button type="submit">Book</button>
-    </form>
+    <div class="container">
+        <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
+        <form action="/submit" method="POST">
+            <label>الاسم</label><input type="text" name="name" required>
+            <label>العمر</label><input type="number" name="age" required>
+            <label>بماذا تشعر؟  </label><input type="text" name="pain" required>
+            <label></label>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="conditions" value="Diabetes"> السكر</label>
+                <label><input type="checkbox" name="conditions" value="High Blood Pressure"> الضغط </label>
+                <label><input type="checkbox" name="conditions" value="Old Injury">اصابه قديمه </label>
+            </div>
+            <label>اختر ميعاد الحجز</label>
+            <select name="appointment" required>
+                <option value="3:00 PM">3:00 PM</option>
+                <option value="3:30 PM">3:30 PM</option>
+                <option value="4:00 PM">4:00 PM</option>
+                <option value="4:30 PM">4:30 PM</option>
+                <option value="5:00 PM">5:00 PM</option>
+                <option value="5:30 PM">5:30 PM</option>
+                <option value="6:00 PM">6:00 PM</option>
+                <option value="6:30 PM">6:30 PM</option>
+                <option value="7:00 PM">7:00 PM</option>
+                <option value="7:30 PM">7:30 PM</option>
+                <option value="8:00 PM">8:00 PM</option>
+                <option value="8:30 PM">8:30 PM</option>
+                <option value="9:00 PM">9:00 PM</option>
+                <option value="9:30 PM">9:30 PM</option>
+                <option value="10:00 PM">10:00 PM</option>
+            </select>
+            <button type="submit">Book</button>
+        </form>
+    </div>
 </body>
 </html>
