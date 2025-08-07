@@ -2,5 +2,5 @@ EMAIL_PASSWORD=dvtk qfvp jcol hbef
 SECRET_KEY=dvtk qfvp jcol hbef
 EMAIL_SENDER=elhadyclinic1@gmail.com
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=hussien11
+ADMIN_PASSWORD=pbkdf2:sha256:260000$JGUNHZ65hAU7kFca$2ab3e64121b72e295214f9fe16a3ca9586e839b5367e33e56db39eef4ca0eee4
 
