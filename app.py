@@ -22,11 +22,8 @@ booked_slots_by_date = {}
 
 @app.route('/')
 def index():
-    # تحديد توقيت مصر
     egypt_time = datetime.now(pytz.timezone('Africa/Cairo'))
     today_str = egypt_time.strftime('%Y-%m-%d')
-
-    # جلب التاريخ من المستخدم أو استخدام تاريخ اليوم
     date = request.args.get('date', today_str)
 
     booked = booked_slots_by_date.get(date, [])
@@ -46,12 +43,7 @@ def submit():
 
     if date not in booked_slots_by_date:
         booked_slots_by_date[date] = []
-
-    # منع الحجز المكرر لنفس الموعد
-    if appointment not in booked_slots_by_date[date]:
-        booked_slots_by_date[date].append(appointment)
-    else:
-        return "هذا الموعد محجوز بالفعل، يرجى اختيار موعد آخر."
+    booked_slots_by_date[date].append(appointment)
 
     message = f"""
     New Patient Booking:
@@ -84,4 +76,4 @@ def send_email(to, subject, body):
         server.sendmail(sender, to, msg.as_string())
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)  # تشغيل على بورت مختلف لتجنب التعارض
+    app.run(debug=True)
