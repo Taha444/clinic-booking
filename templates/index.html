@@ -23,7 +23,6 @@
                     const response = await fetch(`/available_slots?date=${this.value}`);
                     const data = await response.json();
 
-                    // تحديث قائمة المواعيد
                     appointmentSelect.innerHTML = '';
                     data.available_times.forEach(time => {
                         const option = document.createElement('option');
