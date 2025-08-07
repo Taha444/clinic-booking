@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, redirect
-from flask_wtf import FlaskForm
+from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField
 from wtforms.validators import DataRequired
 import smtplib
@@ -14,6 +14,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")  # مفتاح سري لحماية CSRF
+
+# تفعيل حماية CSRF
+csrf = CSRFProtect(app)
 
 # كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
 all_slots = []
