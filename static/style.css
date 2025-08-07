@@ -1,6 +1,9 @@
+/* استيراد خط Tajawal من Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+
 /* إعدادات عامة */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Tajawal', sans-serif;
     background: linear-gradient(to bottom right, #e0f7fa, #ffffff);
     margin: 0;
     padding: 0;
