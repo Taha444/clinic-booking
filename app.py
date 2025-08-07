@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField
@@ -9,7 +9,6 @@ import pytz
 from dotenv import load_dotenv
 import smtplib
 from email.mime.text import MIMEText
-
 # تحميل متغيرات البيئة
 load_dotenv()
 
@@ -79,6 +78,15 @@ def index():
     form.date.data = datetime.strptime(date, '%Y-%m-%d')
 
     return render_template('index.html', form=form, available_times=available_times, selected_date=date)
+
+@app.route('/available_slots')
+def available_slots():
+    date = request.args.get('date')
+    if not date:
+        return jsonify({'available_times': []})
+    booked = get_booked_slots(date)
+    available_times = [slot for slot in all_slots if slot not in booked]
+    return jsonify({'available_times': available_times})
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -164,4 +172,3 @@ def send_email(to, subject, body):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
