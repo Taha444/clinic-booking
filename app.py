@@ -4,8 +4,11 @@ from email.mime.text import MIMEText
 
 app = Flask(__name__)
 
-# كل المواعيد المتاحة
-all_slots = [f"{hour}:00 PM" for hour in range(3, 10)] + ["10:00 PM"]
+# كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
+all_slots = []
+for hour in range(3, 10 + 1):
+    all_slots.append(f"{hour}:00 PM")
+    all_slots.append(f"{hour}:30 PM")
 
 # تخزين المواعيد المحجوزة حسب التاريخ
 booked_slots_by_date = {}
@@ -17,7 +20,7 @@ def index():
         booked = booked_slots_by_date.get(date, [])
         available_times = [slot for slot in all_slots if slot not in booked]
     else:
-        available_times = all_slots
+        available_times = []
     return render_template('index.html', available_times=available_times)
 
 @app.route('/submit', methods=['POST'])
