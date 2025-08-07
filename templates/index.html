@@ -30,7 +30,7 @@
     <div class="container">
         <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
         <form action="/submit" method="POST">
-            {{ csrf_token() }}
+            {{ form.hidden_tag() }}
             <label>الاسم</label><input type="text" name="name" required>
             <label>العمر</label><input type="number" name="age" required>
             <label>رقم الهاتف</label><input type="tel" name="phone" required>
