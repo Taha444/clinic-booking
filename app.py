@@ -62,8 +62,8 @@ def confirmation():
     return render_template('confirmation.html')
 
 def send_email(to, subject, body):
-    sender = "rokayanarrators@gmail.com"
-    password = "snub khwy olwk dwdj"
+    sender = "elhadyclinic1@gmail.com"
+    password = "dvtk qfvp jcol hbef"
 
     msg = MIMEText(body)
     msg['Subject'] = subject
