@@ -1,8 +1,13 @@
+import os
 from flask import Flask, render_template, request, redirect
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 import pytz
+from dotenv import load_dotenv
+
+# تحميل متغيرات البيئة من ملف .env
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -41,7 +46,12 @@ def submit():
 
     if date not in booked_slots_by_date:
         booked_slots_by_date[date] = []
-    booked_slots_by_date[date].append(appointment)
+
+    # منع الحجز المكرر لنفس الموعد
+    if appointment not in booked_slots_by_date[date]:
+        booked_slots_by_date[date].append(appointment)
+    else:
+        return "هذا الموعد محجوز بالفعل، يرجى اختيار موعد آخر."
 
     message = f"""
     New Patient Booking:
@@ -63,7 +73,7 @@ def confirmation():
 
 def send_email(to, subject, body):
     sender = "elhadyclinic1@gmail.com"
-    password = "dvtk qfvp jcol hbef"
+    password = os.getenv("EMAIL_PASSWORD")  # تم استبدال كلمة السر بمتغير بيئي
 
     msg = MIMEText(body)
     msg['Subject'] = subject
@@ -74,4 +84,4 @@ def send_email(to, subject, body):
         server.sendmail(sender, to, msg.as_string())
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)  # تشغيل على بورت مختلف لتجنب التعارض
