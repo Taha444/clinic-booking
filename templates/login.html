@@ -1,19 +1,58 @@
+# Create login.html and bookings.html with CSS styling linked from /static/style.css
+
+login_html = """
 <!DOCTYPE html>
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
     <title>تسجيل الدخول</title>
+    <link rel="stylesheet" href="/static/style11.css">
 </head>
 <body>
-    <h2>تسجيل الدخول كأدمن</h2>
-    {% if error %}
-        <p style="color:red;">{{ error }}</p>
-    {% endif %}
-    <form method="POST">
-        {{ form.hidden_tag() }}
-        <label>اسم المستخدم</label>{{ form.username }}
-        <label>كلمة السر</label>{{ form.password }}
-        {{ form.submit }}
-    </form>
+    <div class="login-container">
+        <h2>تسجيل الدخول كأدمن</h2>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <label>اسم المستخدم</label>{{ form.username }}
+            <label>كلمة السر</label>{{ form.password }}
+            {{ form.submit }}
+        </form>
+    </div>
 </body>
 </html>
+"""
+
+bookings_html = """
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>جميع الحجوزات</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="bookings-container">
+        <h2>جميع الحجوزات</h2>
+        <a href="/logout" class="logout-button">تسجيل الخروج</a>
+        <ul class="bookings-list">
+            {% for b in bookings %}
+                <li>{{ b.name }} - {{ b.date }} - {{ b.appointment }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
+"""
+
+# Save the files to templates directory
+with open("templates/login.html", "w", encoding="utf-8") as f:
+    f.write(login_html)
+
+with open("templates/bookings.html", "w", encoding="utf-8") as f:
+    f.write(bookings_html)
+
+print("تم تعديل login.html و bookings.html لإضافة تنسيق CSS طبي وجذاب.")
+
