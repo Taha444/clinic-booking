@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request, redirect
 import smtplib
 from email.mime.text import MIMEText
+from datetime import datetime, timedelta
+import pytz
 
 app = Flask(__name__)
 
 # كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
 all_slots = []
-for hour in range(3, 10 + 1):
+for hour in range(3, 11):
     all_slots.append(f"{hour}:00 PM")
     all_slots.append(f"{hour}:30 PM")
 
@@ -15,13 +17,17 @@ booked_slots_by_date = {}
 
 @app.route('/')
 def index():
-    date = request.args.get('date')
-    if date:
-        booked = booked_slots_by_date.get(date, [])
-        available_times = [slot for slot in all_slots if slot not in booked]
-    else:
-        available_times = all_slots
-    return render_template('index.html', available_times=available_times)
+    # تحديد توقيت مصر
+    egypt_time = datetime.now(pytz.timezone('Africa/Cairo'))
+    today_str = egypt_time.strftime('%Y-%m-%d')
+
+    # جلب التاريخ من المستخدم أو استخدام تاريخ اليوم
+    date = request.args.get('date', today_str)
+
+    booked = booked_slots_by_date.get(date, [])
+    available_times = [slot for slot in all_slots if slot not in booked]
+
+    return render_template('index.html', available_times=available_times, selected_date=date)
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -33,12 +39,10 @@ def submit():
     conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
 
-    # تسجيل الميعاد في التاريخ المحدد
     if date not in booked_slots_by_date:
         booked_slots_by_date[date] = []
     booked_slots_by_date[date].append(appointment)
 
-    # إرسال الإيميل
     message = f"""
     New Patient Booking:
     Name: {name}
