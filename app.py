@@ -20,7 +20,7 @@ def index():
         booked = booked_slots_by_date.get(date, [])
         available_times = [slot for slot in all_slots if slot not in booked]
     else:
-        available_times = []
+        available_times = all_slots
     return render_template('index.html', available_times=available_times)
 
 @app.route('/submit', methods=['POST'])
