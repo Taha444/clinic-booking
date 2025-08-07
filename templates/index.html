@@ -24,18 +24,7 @@
 <body>
     <div class="container">
         <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
-
-        <!-- اختيار التاريخ أولاً -->
-        <form method="GET" action="/">
-            <label>اختر تاريخ الحجز</label>
-            <input type="date" id="date" name="date" required min="2025-08-07" value="{{ request.args.get('date', '') }}">
-            <button type="submit">عرض المواعيد المتاحة</button>
-        </form>
-
-        {% if available_times %}
-        <!-- نموذج الحجز يظهر بعد اختيار التاريخ -->
         <form action="/submit" method="POST">
-            <input type="hidden" name="date" value="{{ request.args.get('date') }}">
             <label>الاسم</label><input type="text" name="name" required>
             <label>العمر</label><input type="number" name="age" required>
             <label>رقم الهاتف</label><input type="tel" name="phone" required>
@@ -45,6 +34,8 @@
                 <label><input type="checkbox" name="conditions" value="High Blood Pressure"> الضغط</label>
                 <label><input type="checkbox" name="conditions" value="Old Injury"> إصابة قديمة</label>
             </div>
+            <label>اختر تاريخ الحجز</label>
+            <input type="date" id="date" name="date" required min="2025-08-07">
             <label>اختر ميعاد الحجز</label>
             <select name="appointment" required>
                 {% for time in available_times %}
@@ -53,7 +44,6 @@
             </select>
             <button type="submit">Book</button>
         </form>
-        {% endif %}
     </div>
 </body>
 </html>
