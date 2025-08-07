@@ -1,5 +1,8 @@
 import os
 from flask import Flask, render_template, request, redirect
+from flask_wtf import FlaskForm
+from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField
+from wtforms.validators import DataRequired
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
