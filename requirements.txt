@@ -4,3 +4,5 @@ pytz
 python-dotenv
 Flask-WTF
 flask_sqlalchemy
+Werkzeug
+Flask-Limiter
