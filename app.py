@@ -1,9 +1,9 @@
 from flask import Flask, render_template, request, redirect
 import smtplib
 from email.mime.text import MIMEText
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
- 
+
 app = Flask(__name__)
 
 # كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
