@@ -1,3 +1,4 @@
+
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
 
 body {
@@ -134,6 +135,65 @@ button[type="submit"]:hover {
     transform: scale(1.05);
 }
 
+.doctor-banner {
+    background: linear-gradient(to right, #e0f7fa, #ffffff);
+    padding: 40px 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    margin: 30px auto;
+    max-width: 650px;
+    animation: fadeInBanner 1s ease-out;
+}
+
+@keyframes fadeInBanner {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.doctor-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.doctor-img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.doctor-text h2 {
+    margin: 0;
+    color: #00796b;
+    font-size: 24px;
+}
+
+.doctor-text p {
+    margin: 5px 0;
+    color: #555;
+    font-size: 16px;
+}
+
+.doctor-text button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #00796b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.doctor-text button:hover {
+    background-color: #004d40;
+    transform: scale(1.05);
+}
+
 @media (max-width: 600px) {
     .container {
         margin: 20px;
@@ -144,5 +204,16 @@ button[type="submit"]:hover {
     form select,
     button {
         font-size: 16px;
+    }
+
+    .doctor-info {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .doctor-img {
+        width: 100px;
+        height: 100px;
     }
 }
