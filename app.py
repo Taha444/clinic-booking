@@ -119,7 +119,7 @@ def available_slots():
     return jsonify({'available_times': available_times})
 
 @app.route('/submit', methods=['POST'])
-@limiter.limit("500 per minute")
+@limiter.limit("5 per minute")
 def submit():
     if not request.form:
         return "طلب غير صالح", 400
