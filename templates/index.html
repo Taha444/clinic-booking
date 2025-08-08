@@ -86,7 +86,7 @@
         <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
         <form action="/submit" method="POST">
             {{ form.hidden_tag() }}
-            <label>الاسم</label>
+            <label>الاسم بالكامل</label>
             <input type="text" name="name" required value="{{ request.form.name }}">
 
             <label>العمر</label>
@@ -104,17 +104,17 @@
                 <label><input type="checkbox" name="conditions" value="Old Injury"> إصابة قديمة</label>
             </div>
 
-            <label>اختر تاريخ الحجز</label>
+            <label> اختر التاريخ </label>
             <input type="date" id="date" name="date" required min="2025-08-07" value="{{ selected_date }}">
 
-            <label>اختر ميعاد الحجز</label>
+            <label> اختر الوقت المناسب لك </label>
             <select name="appointment" required>
                 {% for time in available_times %}
                     <option value="{{ time }}">{{ time }}</option>
                 {% endfor %}
             </select>
 
-            <button type="submit">احجز</button>
+            <button type="submit">احجز الأن</button>
         </form>
     </div>
 </body>
