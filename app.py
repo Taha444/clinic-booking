@@ -33,7 +33,7 @@ db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 
 # حماية من السبام
-limiter = Limiter(get_remote_address, app=app)
+@limiter.limit("50 per minute")
 
 # إضافة الهيدرات الأمنية
 @app.after_request
