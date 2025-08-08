@@ -1,9 +1,10 @@
 import os
+import html
 from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField
-from wtforms.validators import DataRequired, NumberRange
+from wtforms.validators import DataRequired, NumberRange, Length, Regexp
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -49,7 +50,7 @@ class Booking(db.Model):
     name = db.Column(db.String(100), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     phone = db.Column(db.String(20), nullable=False)
-    pain = db.Column(db.String(200), nullable=False)
+   .Column(db.String(200), nullable=False)
     conditions = db.Column(db.String(200), nullable=True)
     date = db.Column(db.String(20), nullable=False)
     appointment = db.Column(db.String(20), nullable=False)
@@ -64,12 +65,25 @@ for hour in range(3, 11):
     all_slots.append(f"{hour}:00 PM")
     all_slots.append(f"{hour}:30 PM")
 
-# نموذج الحجز
+# نموذج الحجز مع تحقق قوي
 class BookingForm(FlaskForm):
-    name = StringField('الاسم', validators=[DataRequired()])
-    age = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, message="العمر يجب أن يكون رقمًا موجبًا")])
-    phone = TelField('رقم الهاتف', validators=[DataRequired()])
-    pain = StringField('بماذا تشعر؟', validators=[DataRequired()])
+    name = StringField('الاسم', validators=[
+        DataRequired(),
+        Length(min=2, max=100),
+        Regexp(r'^[\u0600-\u06FFa-zA-Z\s]+$', message="الاسم يجب أن يحتوي على حروف فقط")
+    ])
+    age = IntegerField('العمر', validators=[
+        DataRequired(),
+        NumberRange(min=1, max=120, message="العمر يجب أن يكون بين 1 و 120")
+    ])
+    phone = TelField('رقم الهاتف', validators=[
+        DataRequired(),
+        Regexp(r'^\d{10,15}$', message="رقم الهاتف يجب أن يحتوي على 10 إلى 15 رقم")
+    ])
+    pain = StringField('بماذا تشعر؟', validators=[
+        DataRequired(),
+        Length(min=3, max=200)
+    ])
     date = DateField('تاريخ الحجز', validators=[DataRequired()])
     appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
     submit = SubmitField('احجز')
@@ -119,17 +133,18 @@ def available_slots():
     return jsonify({'available_times': available_times})
 
 @app.route('/submit', methods=['POST'])
-@limiter.limit("5 per minute")
+@limiter.limit("100 per minute")  # تم رفع الحد مؤقتًا أثناء الاختبار
 def submit():
     if not request.form:
         return "طلب غير صالح", 400
 
-    name = request.form['name']
+    # فلترة المدخلات لمنع XSS
+    name = html.escape(request.form['name'])
     age = request.form['age']
-    phone = request.form['phone']
+    phone = html.escape(request.form['phone'])
     date = request.form['date']
-    pain = request.form['pain']
-    conditions = request.form.getlist('conditions')
+    pain = html.escape(request.form['pain'])
+    conditions = [html.escape(c) for c in request.form.getlist('conditions')]
     appointment = request.form['appointment']
 
     try:
@@ -213,10 +228,12 @@ def send_email(to, subject, body):
     msg['Subject'] = subject
     msg['From'] = sender
     msg['To'] = to
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(sender, password)
-        server.sendmail(sender, to, msg.as_string())
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender, password)
+            server.sendmail(sender, to, msg.as_string())
+    except Exception as e:
+        print(f"فشل إرسال البريد: {e}")
 
 if __name__ == '__main__':
     app.run(debug=True)
-
