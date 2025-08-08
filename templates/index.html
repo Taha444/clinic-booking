@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>El-Hady Clinic</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="style.css">
 
     <script>
         function setupDateChange() {
@@ -43,42 +43,64 @@
             });
         }
 
+        function goToBooking() {
+            const banner = document.getElementById('doctor-banner');
+            banner.style.transition = "opacity 0.6s ease, transform 0.6s ease";
+            banner.style.opacity = "0";
+            banner.style.transform = "translateY(-20px)";
+            setTimeout(() => {
+                banner.style.display = "none";
+            }, 600);
+        }
+
         window.onload = setupDateChange;
     </script>
 </head>
 <body>
+    <div id="doctor-banner" class="doctor-banner">
+        <div class="doctor-info">
+            <img src="doctor-clean.png" alt="صورة الطبيب" class="doctor-img">
+            <div class="doctor-text">
+                <h2>د. أحمد الهادي</h2>
+                <p>خريج كلية العلاج الطبيعي - جامعة القاهرة</p>
+                <p>أخصائي تأهيل إصابات الملاعب والعمود الفقري</p>
+                <button onclick="goToBooking()">اذهب للحجز</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
         <form action="/submit" method="POST">
             {{ form.hidden_tag() }}
             <label>الاسم</label>
             <input type="text" name="name" required value="{{ request.form.name }}">
-            
+
             <label>العمر</label>
             <input type="number" name="age" required min="1" value="{{ request.form.age }}">
-            
+
             <label>رقم الهاتف</label>
             <input type="tel" name="phone" required value="{{ request.form.phone }}">
-            
+
             <label>بماذا تشعر؟</label>
             <input type="text" name="pain" required value="{{ request.form.pain }}">
-            
+
             <div class="checkbox-group">
                 <label><input type="checkbox" name="conditions" value="Diabetes"> السكر</label>
                 <label><input type="checkbox" name="conditions" value="High Blood Pressure"> الضغط</label>
                 <label><input type="checkbox" name="conditions" value="Old Injury"> إصابة قديمة</label>
             </div>
-            
+
             <label>اختر تاريخ الحجز</label>
             <input type="date" id="date" name="date" required min="2025-08-07" value="{{ selected_date }}">
-            
+
             <label>اختر ميعاد الحجز</label>
             <select name="appointment" required>
                 {% for time in available_times %}
                     <option value="{{ time }}">{{ time }}</option>
                 {% endfor %}
             </select>
-            
+
             <button type="submit">احجز</button>
         </form>
     </div>
