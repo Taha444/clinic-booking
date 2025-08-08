@@ -1,10 +1,9 @@
 import os
-import html
 from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField
-from wtforms.validators import DataRequired, NumberRange, Length, Regexp
+from wtforms.validators import DataRequired, NumberRange
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -13,7 +12,6 @@ from email.mime.text import MIMEText
 from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
 # تحميل متغيرات البيئة
 load_dotenv()
 
@@ -65,25 +63,12 @@ for hour in range(3, 11):
     all_slots.append(f"{hour}:00 PM")
     all_slots.append(f"{hour}:30 PM")
 
-# نموذج الحجز مع تحقق قوي
+# نموذج الحجز
 class BookingForm(FlaskForm):
-    name = StringField('الاسم', validators=[
-        DataRequired(),
-        Length(min=2, max=100),
-        Regexp(r'^[\u0600-\u06FFa-zA-Z\s]+$', message="الاسم يجب أن يحتوي على حروف فقط")
-    ])
-    age = IntegerField('العمر', validators=[
-        DataRequired(),
-        NumberRange(min=1, max=120, message="العمر يجب أن يكون بين 1 و 120")
-    ])
-    phone = TelField('رقم الهاتف', validators=[
-        DataRequired(),
-        Regexp(r'^\d{10,15}$', message="رقم الهاتف يجب أن يحتوي على 10 إلى 15 رقم")
-    ])
-    pain = StringField('بماذا تشعر؟', validators=[
-        DataRequired(),
-        Length(min=3, max=200)
-    ])
+    name = StringField('الاسم', validators=[DataRequired()])
+    age = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, message="العمر يجب أن يكون رقمًا موجبًا")])
+    phone = TelField('رقم الهاتف', validators=[DataRequired()])
+    pain = StringField('بماذا تشعر؟', validators=[DataRequired()])
     date = DateField('تاريخ الحجز', validators=[DataRequired()])
     appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
     submit = SubmitField('احجز')
@@ -104,14 +89,11 @@ def index():
     egypt_time = datetime.now(pytz.timezone('Africa/Cairo'))
     today_str = egypt_time.strftime('%Y-%m-%d')
     date = request.args.get('date', today_str)
-
     booked = get_booked_slots(date)
     available_times = [slot for slot in all_slots if slot not in booked]
-
     form = BookingForm()
     form.appointment.choices = [(time, time) for time in available_times]
     form.date.data = datetime.strptime(date, '%Y-%m-%d')
-
     return render_template('index.html', form=form, available_times=available_times, selected_date=date)
 
 @app.route('/available_slots')
@@ -119,7 +101,6 @@ def available_slots():
     date = request.args.get('date')
     if not date:
         return jsonify({'available_times': []})
-
     try:
         selected_date = datetime.strptime(date, '%Y-%m-%d')
         today = datetime.now(pytz.timezone('Africa/Cairo')).date()
@@ -127,26 +108,22 @@ def available_slots():
             return jsonify({'available_times': []})
     except ValueError:
         return jsonify({'available_times': []})
-
     booked = get_booked_slots(date)
     available_times = [slot for slot in all_slots if slot not in booked]
     return jsonify({'available_times': available_times})
 
 @app.route('/submit', methods=['POST'])
-@limiter.limit("100 per minute")  # تم رفع الحد مؤقتًا أثناء الاختبار
+@limiter.limit("5 per minute")
 def submit():
     if not request.form:
         return "طلب غير صالح", 400
-
-    # فلترة المدخلات لمنع XSS
-    name = html.escape(request.form['name'])
+    name = request.form['name']
     age = request.form['age']
-    phone = html.escape(request.form['phone'])
+    phone = request.form['phone']
     date = request.form['date']
-    pain = html.escape(request.form['pain'])
-    conditions = [html.escape(c) for c in request.form.getlist('conditions')]
+    pain = request.form['pain']
+    conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
-
     try:
         selected_date = datetime.strptime(date, '%Y-%m-%d')
         today = datetime.now(pytz.timezone('Africa/Cairo')).date()
@@ -154,10 +131,8 @@ def submit():
             return "لا يمكن الحجز في يوم الجمعة أو في تاريخ سابق.", 400
     except ValueError:
         return "تاريخ غير صالح", 400
-
     if appointment in get_booked_slots(date):
         return "هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر."
-
     new_booking = Booking(
         name=name,
         age=age,
@@ -169,19 +144,15 @@ def submit():
     )
     db.session.add(new_booking)
     db.session.commit()
-
-    message = f"""
-    New Patient Booking:
-    Name: {name}
-    Age: {age}
-    Phone: {phone}
-    Date: {date}
-    Pain: {pain}
-    Conditions: {', '.join(conditions)}
-    Appointment Time: {appointment}
-    """
+    message = f"""New Patient Booking:
+Name: {name}
+Age: {age}
+Phone: {phone}
+Date: {date}
+Pain: {pain}
+Conditions: {', '.join(conditions)}
+Appointment Time: {appointment}"""
     send_email("tetoelsalahy@gmail.com", "New Patient Booking", message)
-
     return redirect('/confirmation')
 
 @app.route('/confirmation')
@@ -192,20 +163,16 @@ def confirmation():
 def login():
     form = LoginForm()
     error = None
-
     env_username = os.getenv("ADMIN_USERNAME")
     env_password_hash = os.getenv("ADMIN_PASSWORD")
-
     if form.validate_on_submit():
         input_username = form.username.data
         input_password = form.password.data
-
         if input_username == env_username and check_password_hash(env_password_hash, input_password):
             session['admin_logged_in'] = True
             return redirect('/bookings')
         else:
             error = "بيانات الدخول غير صحيحة"
-
     return render_template('login.html', form=form, error=error)
 
 @app.route('/logout')
@@ -223,17 +190,13 @@ def bookings():
 def send_email(to, subject, body):
     sender = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
     password = os.getenv("EMAIL_PASSWORD")
-
     msg = MIMEText(body)
     msg['Subject'] = subject
     msg['From'] = sender
     msg['To'] = to
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(sender, password)
-            server.sendmail(sender, to, msg.as_string())
-    except Exception as e:
-        print(f"فشل إرسال البريد: {e}")
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(sender, password)
+        server.sendmail(sender, to, msg.as_string())
 
 if __name__ == '__main__':
     app.run(debug=True)
