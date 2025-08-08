@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
 # تحميل متغيرات البيئة
 load_dotenv()
 
@@ -99,7 +100,8 @@ def available_slots():
 
     try:
         selected_date = datetime.strptime(date, '%Y-%m-%d')
-        if selected_date.weekday() == 4:  # الجمعة
+        today = datetime.now(pytz.timezone('Africa/Cairo')).date()
+        if selected_date.weekday() == 4 or selected_date.date() < today:
             return jsonify({'available_times': []})
     except ValueError:
         return jsonify({'available_times': []})
@@ -124,8 +126,9 @@ def submit():
 
     try:
         selected_date = datetime.strptime(date, '%Y-%m-%d')
-        if selected_date.weekday() == 4:  # الجمعة
-            return "العيادة مغلقة يوم الجمعة، يرجى اختيار يوم آخر.", 400
+        today = datetime.now(pytz.timezone('Africa/Cairo')).date()
+        if selected_date.weekday() == 4 or selected_date.date() < today:
+            return "لا يمكن الحجز في يوم الجمعة أو في تاريخ سابق.", 400
     except ValueError:
         return "تاريخ غير صالح", 400
 
@@ -208,3 +211,4 @@ def send_email(to, subject, body):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
