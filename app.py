@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, NumberRange
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -59,7 +59,7 @@ for hour in range(3, 11):
 # نموذج الحجز
 class BookingForm(FlaskForm):
     name = StringField('الاسم', validators=[DataRequired()])
-    age = IntegerField('العمر', validators=[DataRequired()])
+    age = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, message="العمر يجب أن يكون رقمًا موجبًا")])
     phone = TelField('رقم الهاتف', validators=[DataRequired()])
     pain = StringField('بماذا تشعر؟', validators=[DataRequired()])
     date = DateField('تاريخ الحجز', validators=[DataRequired()])
@@ -211,4 +211,3 @@ def send_email(to, subject, body):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
