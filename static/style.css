@@ -11,6 +11,13 @@ body {
     background-repeat: no-repeat;
     background-position: center;
     background-size: cover;
+    animation: fadeInBody 1.5s ease-in;
+}
+
+/* أنيميشن دخول الصفحة */
+@keyframes fadeInBody {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* الحاوية الرئيسية */
@@ -22,6 +29,13 @@ body {
     border-radius: 16px;
     box-shadow: 0 8px 20px rgba(0,0,0,0.15);
     backdrop-filter: blur(5px);
+    animation: slideUp 1s ease-out;
+}
+
+/* أنيميشن دخول النموذج */
+@keyframes slideUp {
+    from { transform: translateY(40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 /* عنوان الصفحة */
@@ -47,6 +61,7 @@ form label {
     margin-bottom: 5px;
     font-weight: bold;
     color: #004d40;
+    transition: color 0.3s ease;
 }
 
 form input[type="text"],
@@ -61,13 +76,14 @@ form select {
     box-sizing: border-box;
     font-size: 16px;
     background-color: #e0f2f1;
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 form input:focus,
 form select:focus {
     border-color: #00796b;
     outline: none;
+    box-shadow: 0 0 8px rgba(0, 121, 107, 0.3);
 }
 
 /* مجموعة الشيك بوكس */
@@ -81,6 +97,11 @@ form select:focus {
 .checkbox-group label {
     font-weight: normal;
     color: #555;
+    transition: transform 0.2s ease;
+}
+
+.checkbox-group label:hover {
+    transform: scale(1.02);
 }
 
 /* زر الحجز */
@@ -99,7 +120,7 @@ button[type="submit"] {
 
 button[type="submit"]:hover {
     background-color: #004d40;
-    transform: scale(1.02);
+    transform: scale(1.03);
 }
 
 /* استجابة للشاشات الصغيرة */
