@@ -1,58 +1,105 @@
+with open("confirmation.html", "w", encoding="utf-8") as f:
+    f.write("""<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>تم الحجز بنجاح</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #e0f7fa, #f1f8e9);
+            font-family: 'Tajawal', sans-serif;
+            margin: 0;
+            padding: 0;
+            animation: fadeInBody 1.5s ease-in;
+        }
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(to right, #e0f7fa, #ffffff);
-    margin: 0;
-    padding: 0;
-    color: #004d40;
-}
+        @keyframes fadeInBody {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
 
-.container.confirmation-container {
-    max-width: 600px;
-    margin: 80px auto;
-    background-color: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 77, 64, 0.2);
-    padding: 40px;
-    text-align: center;
-    position: relative;
-}
+        .confirmation-container {
+            max-width: 600px;
+            margin: 60px auto;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+            backdrop-filter: blur(6px);
+            text-align: center;
+            animation: slideUp 1s ease-out;
+        }
 
-.container.confirmation-container::before {
-    content: "🩺";
-    font-size: 48px;
-    position: absolute;
-    top: -30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #ffffff;
-    border-radius: 50%;
-    padding: 10px;
-    box-shadow: 0 2px 6px rgba(0, 77, 64, 0.2);
-}
+        @keyframes slideUp {
+            from { transform: translateY(40px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
 
-h2 {
-    color: #00796b;
-    margin-bottom: 20px;
-}
+        .confirmation-icon {
+            font-size: 60px;
+            color: #00796b;
+            animation: pulse 2s infinite;
+        }
 
-p {
-    font-size: 18px;
-    line-height: 1.6;
-    margin-bottom: 30px;
-}
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
 
-.button {
-    display: inline-block;
-    background-color: #00796b;
-    color: #ffffff;
-    padding: 12px 24px;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: bold;
-    transition: background-color 0.3s ease;
-}
+        h2 {
+            color: #00796b;
+            font-size: 28px;
+            margin-top: 20px;
+        }
 
-.button:hover {
-    background-color: #004d40;
-}
+        p {
+            font-size: 18px;
+            color: #555;
+            margin: 20px 0;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 14px 28px;
+            background-color: #00796b;
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 18px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .back-button:hover {
+            background-color: #004d40;
+            transform: scale(1.05);
+        }
+
+        .medical-decoration {
+            margin-top: 30px;
+            font-size: 24px;
+            color: #4db6ac;
+            animation: float 3s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="confirmation-container">
+        <div class="confirmation-icon">✅</div>
+        <h2>تم الحجز بنجاح!</h2>
+        <p>شكرًا لك على ثقتك بنا. سيتم التواصل معك لتأكيد الموعد.</p>
+        <a href="/" class="back-button">العودة للصفحة الرئيسية</a>
+        <div class="medical-decoration">🩺💊🧬</div>
+    </div>
+</body>
+</html>""")
+
+print("تم إنشاء ملف confirmation.html بتصميم طبي مميز.")
+
