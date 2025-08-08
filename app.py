@@ -1,4 +1,5 @@
 import os
+import html
 from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
@@ -20,7 +21,7 @@ app.secret_key = os.getenv("SECRET_KEY")
 
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -64,7 +65,10 @@ class BookingForm(FlaskForm):
         DataRequired(),
         Regexp(r'^\d{10,}$', message="رقم الهاتف يجب أن يحتوي على 10 أرقام على الأقل")
     ])
-    pain = StringField('بماذا تشعر؟', validators=[DataRequired()])
+    pain = StringField('بماذا تشعر؟', validators=[
+        DataRequired(),
+        Regexp(r'^[^<>"]+$', message="المدخل يحتوي على رموز غير مسموح بها")
+    ])
     date = DateField('تاريخ الحجز', validators=[DataRequired()])
     appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
     submit = SubmitField('احجز')
@@ -111,11 +115,12 @@ def available_slots():
 def submit():
     if not request.form:
         return "طلب غير صالح", 400
+
     name = request.form['name'].strip()
     age = request.form['age']
     phone = request.form['phone'].strip()
     date = request.form['date']
-    pain = request.form['pain'].strip()
+    pain = html.escape(request.form['pain'].strip())  # حماية من XSS
     conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
 
@@ -165,6 +170,7 @@ def confirmation():
     return render_template('confirmation.html')
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("3 per minute")  # حماية من التخمين
 def login():
     form = LoginForm()
     error = None
