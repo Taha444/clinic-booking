@@ -13,6 +13,9 @@
             const dateInput = document.getElementById('date');
             const appointmentSelect = document.querySelector('select[name="appointment"]');
 
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.setAttribute('min', today);
+
             dateInput.addEventListener('input', async function () {
                 const selectedDate = new Date(this.value);
 
@@ -76,7 +79,6 @@
     </script>
 </head>
 <body>
-    <!-- شريط تعريف الطبيب -->
     <div id="doctor-banner" class="doctor-banner">
         <div class="doctor-info">
             <img src="/static/doctor-clean.png" alt="صورة الطبيب" class="doctor-img">
@@ -90,19 +92,18 @@
         </div>
     </div>
 
-    <!-- نموذج الحجز -->
     <div class="container" id="booking-form" style="display: none;">
         <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
         <form action="/submit" method="POST">
             {{ form.hidden_tag() }}
             <label>الاسم بالكامل</label>
-            <input type="text" name="name" required value="{{ request.form.name }}">
+            <input type="text" name="name" required pattern="[أ-يa-zA-Z\s]{3,}" title="الاسم يجب أن يحتوي على 3 أحرف على الأقل" value="{{ request.form.name }}">
 
             <label>العمر</label>
-            <input type="number" name="age" required min="1" value="{{ request.form.age }}">
+            <input type="number" name="age" required min="1" max="120" value="{{ request.form.age }}">
 
             <label>رقم الهاتف</label>
-            <input type="tel" name="phone" required value="{{ request.form.phone }}">
+            <input type="tel" name="phone" required pattern="\d{10,}" title="رقم الهاتف يجب أن يحتوي على 10 أرقام على الأقل" value="{{ request.form.phone }}">
 
             <label>بماذا تشعر؟</label>
             <input type="text" name="pain" required value="{{ request.form.pain }}">
@@ -114,7 +115,7 @@
             </div>
 
             <label>اختر التاريخ</label>
-            <input type="date" id="date" name="date" required min="2025-08-07" value="{{ selected_date }}">
+            <input type="date" id="date" name="date" required value="{{ selected_date }}">
 
             <label>اختر الوقت المناسب لك</label>
             <select name="appointment" required>
