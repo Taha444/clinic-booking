@@ -110,7 +110,7 @@
       <input type="tel" name="phone" required pattern="\d{10,}" title="رقم الهاتف يجب أن يحتوي على 10 أرقام على الأقل" value="{{ request.form.phone }}">
 
       <label>بماذا تشعر؟</label>
-      <input type="text" name="pain" required value="{{ request.form.pain }}">
+      <input type="text" name="pain" required pattern="[^<>\"\']+" title="المدخل لا يجب أن يحتوي على رموز مثل < > أو علامات اقتباس" value="{{ request.form.pain }}">
 
       <div class="checkbox-group">
         <label><input type="checkbox" name="conditions" value="Diabetes"> السكر</label>
