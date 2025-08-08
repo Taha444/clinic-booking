@@ -7,17 +7,25 @@
     <link rel="stylesheet" href="/static/style.css">
 
     <script>
+        let fridayAlertShown = false;
+
         function setupDateChange() {
             const dateInput = document.getElementById('date');
             const appointmentSelect = document.querySelector('select[name="appointment"]');
 
             dateInput.addEventListener('input', async function () {
                 const selectedDate = new Date(this.value);
+
                 if (selectedDate.getDay() === 5) {
-                    alert("العيادة مغلقة يوم الجمعة، يرجى اختيار يوم آخر.");
+                    if (!fridayAlertShown) {
+                        alert("العيادة مغلقة يوم الجمعة، يرجى اختيار يوم آخر.");
+                        fridayAlertShown = true;
+                    }
                     this.value = '';
                     return;
                 }
+
+                fridayAlertShown = false;
 
                 try {
                     const response = await fetch(`/available_slots?date=${this.value}`);
@@ -28,6 +36,7 @@
                         const option = document.createElement('option');
                         option.textContent = "لا توجد مواعيد متاحة في هذا اليوم";
                         option.disabled = true;
+                        option.selected = true;
                         appointmentSelect.appendChild(option);
                     } else {
                         data.available_times.forEach(time => {
@@ -75,13 +84,13 @@
                 <h2>د/ حسين عبد الهادي الصلاحي</h2>
                 <p>خريج كلية العلاج الطبيعي - جامعة الدلتا للعلوم والتكنولوجيا</p>
                 <p>أخصائي تأهيل إصابات الملاعب والعمود الفقري</p>
-                 <p>نائب مدير مستشفي مطروح العام</p>
+                <p>نائب مدير مستشفي مطروح العام</p>
                 <button onclick="goToBooking()">اذهب للحجز</button>
             </div>
         </div>
     </div>
 
-    <!-- نموذج الحجز (مخفي في البداية) -->
+    <!-- نموذج الحجز -->
     <div class="container" id="booking-form" style="display: none;">
         <h1>مركز الهادي للعلاج الطبيعي والتأهيل</h1>
         <form action="/submit" method="POST">
@@ -104,10 +113,10 @@
                 <label><input type="checkbox" name="conditions" value="Old Injury"> إصابة قديمة</label>
             </div>
 
-            <label> اختر التاريخ </label>
+            <label>اختر التاريخ</label>
             <input type="date" id="date" name="date" required min="2025-08-07" value="{{ selected_date }}">
 
-            <label> اختر الوقت المناسب لك </label>
+            <label>اختر الوقت المناسب لك</label>
             <select name="appointment" required>
                 {% for time in available_times %}
                     <option value="{{ time }}">{{ time }}</option>
