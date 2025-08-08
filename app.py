@@ -12,7 +12,6 @@ from email.mime.text import MIMEText
 from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
 # تحميل متغيرات البيئة
 load_dotenv()
 
@@ -97,6 +96,14 @@ def available_slots():
     date = request.args.get('date')
     if not date:
         return jsonify({'available_times': []})
+
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d')
+        if selected_date.weekday() == 4:  # الجمعة
+            return jsonify({'available_times': []})
+    except ValueError:
+        return jsonify({'available_times': []})
+
     booked = get_booked_slots(date)
     available_times = [slot for slot in all_slots if slot not in booked]
     return jsonify({'available_times': available_times})
@@ -114,6 +121,13 @@ def submit():
     pain = request.form['pain']
     conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
+
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d')
+        if selected_date.weekday() == 4:  # الجمعة
+            return "العيادة مغلقة يوم الجمعة، يرجى اختيار يوم آخر.", 400
+    except ValueError:
+        return "تاريخ غير صالح", 400
 
     if appointment in get_booked_slots(date):
         return "هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر."
@@ -153,7 +167,6 @@ def login():
     form = LoginForm()
     error = None
 
-    # جلب اسم المستخدم وكلمة السر المشفرة من البيئة
     env_username = os.getenv("ADMIN_USERNAME")
     env_password_hash = os.getenv("ADMIN_PASSWORD")
 
