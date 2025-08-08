@@ -35,6 +35,14 @@ csrf = CSRFProtect(app)
 # حماية من السبام
 limiter = Limiter(get_remote_address, app=app)
 
+# إضافة الهيدرات الأمنية
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
 # نموذج قاعدة البيانات
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -211,3 +219,4 @@ def send_email(to, subject, body):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
