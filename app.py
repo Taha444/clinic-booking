@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField
-from wtforms.validators import DataRequired, NumberRange
+from wtforms.validators import DataRequired, NumberRange, Length, Regexp
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -12,29 +12,22 @@ from email.mime.text import MIMEText
 from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-# تحميل متغيرات البيئة
+
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
-# إعدادات حماية الجلسة
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-
-# إعداد قاعدة البيانات
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# حماية CSRF
 csrf = CSRFProtect(app)
-
-# حماية من السبام
 limiter = Limiter(get_remote_address, app=app)
 
-# إضافة الهيدرات الأمنية
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
@@ -42,7 +35,6 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
-# نموذج قاعدة البيانات
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -53,33 +45,35 @@ class Booking(db.Model):
     date = db.Column(db.String(20), nullable=False)
     appointment = db.Column(db.String(20), nullable=False)
 
-# إنشاء قاعدة البيانات
 with app.app_context():
     db.create_all()
 
-# كل المواعيد من 3:00 PM إلى 10:00 PM بنص ساعة
 all_slots = []
 for hour in range(3, 11):
     all_slots.append(f"{hour}:00 PM")
     all_slots.append(f"{hour}:30 PM")
 
-# نموذج الحجز
 class BookingForm(FlaskForm):
-    name = StringField('الاسم', validators=[DataRequired()])
-    age = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, message="العمر يجب أن يكون رقمًا موجبًا")])
-    phone = TelField('رقم الهاتف', validators=[DataRequired()])
+    name = StringField('الاسم', validators=[
+        DataRequired(),
+        Length(min=3),
+        Regexp(r'^[أ-يa-zA-Z\s]+$', message="الاسم يجب أن يحتوي على حروف فقط")
+    ])
+    age = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, max=120)])
+    phone = TelField('رقم الهاتف', validators=[
+        DataRequired(),
+        Regexp(r'^\d{10,}$', message="رقم الهاتف يجب أن يحتوي على 10 أرقام على الأقل")
+    ])
     pain = StringField('بماذا تشعر؟', validators=[DataRequired()])
     date = DateField('تاريخ الحجز', validators=[DataRequired()])
     appointment = SelectField('ميعاد الحجز', validators=[DataRequired()])
     submit = SubmitField('احجز')
 
-# نموذج تسجيل الدخول
 class LoginForm(FlaskForm):
     username = StringField('اسم المستخدم', validators=[DataRequired()])
     password = PasswordField('كلمة السر', validators=[DataRequired()])
     submit = SubmitField('تسجيل الدخول')
 
-# استخراج المواعيد المحجوزة
 def get_booked_slots(date):
     bookings = Booking.query.filter_by(date=date).all()
     return [b.appointment for b in bookings]
@@ -117,22 +111,32 @@ def available_slots():
 def submit():
     if not request.form:
         return "طلب غير صالح", 400
-    name = request.form['name']
+    name = request.form['name'].strip()
     age = request.form['age']
-    phone = request.form['phone']
+    phone = request.form['phone'].strip()
     date = request.form['date']
-    pain = request.form['pain']
+    pain = request.form['pain'].strip()
     conditions = request.form.getlist('conditions')
     appointment = request.form['appointment']
+
     try:
+        age = int(age)
+        if age < 1 or age > 120:
+            return "العمر غير منطقي", 400
+        if not name or len(name) < 3:
+            return "الاسم غير صالح", 400
+        if not phone.isdigit() or len(phone) < 10:
+            return "رقم الهاتف غير صالح", 400
         selected_date = datetime.strptime(date, '%Y-%m-%d')
         today = datetime.now(pytz.timezone('Africa/Cairo')).date()
         if selected_date.weekday() == 4 or selected_date.date() < today:
             return "لا يمكن الحجز في يوم الجمعة أو في تاريخ سابق.", 400
     except ValueError:
-        return "تاريخ غير صالح", 400
+        return "تاريخ أو بيانات غير صالحة", 400
+
     if appointment in get_booked_slots(date):
         return "هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر."
+
     new_booking = Booking(
         name=name,
         age=age,
@@ -144,6 +148,7 @@ def submit():
     )
     db.session.add(new_booking)
     db.session.commit()
+
     message = f"""New Patient Booking:
 Name: {name}
 Age: {age}
