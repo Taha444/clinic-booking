@@ -50,7 +50,7 @@ class Booking(db.Model):
     name = db.Column(db.String(100), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     phone = db.Column(db.String(20), nullable=False)
-   .Column(db.String(200), nullable=False)
+    pain = db.Column(db.String(200), nullable=False)
     conditions = db.Column(db.String(200), nullable=True)
     date = db.Column(db.String(20), nullable=False)
     appointment = db.Column(db.String(20), nullable=False)
