@@ -434,6 +434,54 @@ def rate_booking(token):
     return render_template('rate.html', booking=b)
 
 
+
+# ─────────────────────────────────────────────
+#  RATE — صفحة تقييم مستقلة (بالهاتف)
+# ─────────────────────────────────────────────
+@app.route('/rate', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
+def rate_page():
+    """صفحة تقييم مستقلة — المريض يدخل رقمه ويقيّم"""
+    done = False
+    already_rated = False
+    booking = None
+    error = None
+
+    if request.method == 'POST':
+        phone   = request.form.get('phone', '').strip()
+        stars   = request.form.get('stars', '0')
+        comment = html.escape(request.form.get('comment', '').strip()[:500])
+
+        if not phone.isdigit() or len(phone) < 10:
+            error = "يرجى إدخال رقم هاتف صحيح"
+        else:
+            # آخر حجز مؤكد لهذا الرقم
+            booking = (Booking.query
+                       .filter_by(phone=phone, status='confirmed')
+                       .order_by(Booking.date.desc())
+                       .first())
+            if not booking:
+                error = "لم نجد حجزاً مرتبطاً بهذا الرقم"
+            elif booking.rating:
+                already_rated = True
+            else:
+                try:
+                    stars = int(stars)
+                except:
+                    stars = 0
+                if not (1 <= stars <= 5):
+                    error = "يرجى اختيار تقييم من 1 إلى 5 نجوم"
+                else:
+                    r = BookingRating(booking_id=booking.id,
+                                      stars=stars, comment=comment)
+                    db.session.add(r)
+                    db.session.commit()
+                    done = True
+
+    return render_template('rate_page.html',
+                           done=done, already_rated=already_rated,
+                           booking=booking, error=error)
+
 # ─────────────────────────────────────────────
 #  ADMIN AUTH
 # ─────────────────────────────────────────────
