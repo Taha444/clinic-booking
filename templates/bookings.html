@@ -1,19 +1,109 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>جميع الحجوزات</title>
-    <link rel="stylesheet" href="/static/style11.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة الحجوزات – مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="bookings-container container">
-        <h2>جميع الحجوزات</h2>
-        <a href="/logout" class="logout-button">تسجيل الخروج</a>
-        <ul class="bookings-list">
-            {% for b in bookings %}
-                <li>{{ b.name }} - {{ b.date }} - {{ b.appointment }}</li>
-            {% endfor %}
-        </ul>
+
+<div class="admin-page">
+
+  <!-- هيدر الأدمن -->
+  <div class="admin-header">
+    <div>
+      <div class="admin-title">📋 لوحة الحجوزات</div>
+      <div class="admin-subtitle">إجمالي الحجوزات: {{ bookings|length }}</div>
     </div>
+    <a href="/logout" class="btn-logout">🚪 تسجيل الخروج</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash-msg {{ category }}" style="margin-bottom:1rem;">
+          {{ '✅' if category == 'success' else '⚠️' }} {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- شريط البحث -->
+  <form method="GET" action="/bookings" class="search-bar">
+    <input
+      type="text"
+      name="search"
+      placeholder="🔍 ابحث بالاسم أو الهاتف..."
+      value="{{ search }}">
+    <input
+      type="date"
+      name="date_filter"
+      value="{{ date_filter }}"
+      title="فلتر بالتاريخ">
+    <button type="submit" class="btn-search">بحث</button>
+    {% if search or date_filter %}
+      <a href="/bookings" style="padding:.7rem 1rem;color:var(--text-secondary);text-decoration:none;font-size:.9rem;">
+        ✖ إلغاء الفلتر
+      </a>
+    {% endif %}
+  </form>
+
+  <!-- جدول الحجوزات -->
+  <div class="bookings-table-wrap">
+    {% if bookings %}
+      <table class="bookings-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>الاسم</th>
+            <th>العمر</th>
+            <th>الهاتف</th>
+            <th>الشكوى</th>
+            <th>الحالات</th>
+            <th>التاريخ</th>
+            <th>الميعاد</th>
+            <th>حذف</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bookings %}
+            <tr>
+              <td style="color:var(--text-muted);font-size:.82rem;">{{ loop.index }}</td>
+              <td style="font-weight:600;">{{ b.name }}</td>
+              <td>{{ b.age }}</td>
+              <td style="direction:ltr;text-align:right;">{{ b.phone }}</td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ b.pain }}">
+                {{ b.pain }}
+              </td>
+              <td style="font-size:.8rem;color:var(--text-secondary);">
+                {{ b.conditions or '—' }}
+              </td>
+              <td>{{ b.date }}</td>
+              <td>
+                <span class="appointment-badge">🕐 {{ b.appointment }}</span>
+              </td>
+              <td>
+                <form method="POST" action="/delete_booking/{{ b.id }}"
+                      onsubmit="return confirm('هل أنت متأكد من حذف حجز {{ b.name }}؟')">
+                  {{ form.hidden_tag() if form is defined else '' }}
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn-delete">🗑 حذف</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div class="empty-text">لا توجد حجوزات {% if search or date_filter %}تطابق البحث{% endif %}</div>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
 </body>
 </html>
