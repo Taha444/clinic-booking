@@ -1,22 +1,33 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>تأكيد الحجز</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/confirmation_style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تم الحجز بنجاح – مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container confirmation-container">
-        <div class="confirmation-icon">✅</div>
-        <h2>شكرًا لحجزك في مركز الهادي للعلاج الطبيعي</h2>
-        <p>تم تأكيد الحجز بنجاح. سنقوم بالتواصل معك قريبًا لتأكيد التفاصيل.</p>
-        
-        <a href="/" class="back-button">
-            <span class="icon">🩺</span> العودة إلى الصفحة الرئيسية
-        </a>
+  <div class="confirmation-page">
+    <div class="confirmation-card">
+      <div class="confirmation-icon">✅</div>
 
-        <div class="medical-decoration">💚 مركز الهادي يتمنى لك الشفاء العاجل</div>
+      <h2 class="confirmation-title">تم الحجز بنجاح!</h2>
+
+      <p class="confirmation-text">
+        شكراً لثقتك في <strong>مركز الهادي للعلاج الطبيعي والتأهيل</strong>.<br>
+        سنتواصل معك قريباً لتأكيد التفاصيل. 💚
+      </p>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a href="/" class="btn-back">
+          🏠 العودة للصفحة الرئيسية
+        </a>
+      </div>
+
+      <div style="margin-top:1.5rem;padding:1rem;background:var(--primary-light);border-radius:var(--radius-md);font-size:.88rem;color:var(--primary-dark);">
+        💡 تذكير: يرجى الحضور قبل موعدك بـ 10 دقائق
+      </div>
     </div>
+  </div>
 </body>
 </html>
