@@ -1,4 +1,5 @@
 import os
+import threading
 import html
 from flask import Flask, render_template, request, redirect, session, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
@@ -14,6 +15,7 @@ from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import UniqueConstraint
+from sqlalchemy.exc import IntegrityError
 
 load_dotenv()
 
@@ -35,18 +37,9 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    # ✅ إضافة Content Security Policy
-    response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "script-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:;"
-    )
     return response
 
 
-# ✅ تصليح: إضافة UniqueConstraint لمنع Race Condition في الحجز
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -71,16 +64,13 @@ for hour in range(3, 11):
 
 
 def get_egypt_today():
-    """إرجاع تاريخ اليوم بتوقيت القاهرة"""
     return datetime.now(pytz.timezone('Africa/Cairo')).date()
 
 
 def is_valid_booking_date(date_str):
-    """التحقق من صحة تاريخ الحجز"""
     try:
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         today = get_egypt_today()
-        # ✅ تصليح: weekday()==4 هو الجمعة في Python — صحيح
         if selected_date.weekday() == 4:
             return False, "العيادة مغلقة يوم الجمعة"
         if selected_date < today:
@@ -90,27 +80,26 @@ def is_valid_booking_date(date_str):
         return False, "تاريخ غير صالح"
 
 
+def get_booked_slots(date):
+    bookings = Booking.query.filter_by(date=date).all()
+    return [b.appointment for b in bookings]
+
+
 class BookingForm(FlaskForm):
     name = StringField('الاسم', validators=[
-        DataRequired(message="الاسم مطلوب"),
-        Length(min=3, message="الاسم يجب أن يكون 3 أحرف على الأقل"),
-        Regexp(r'^[أ-يa-zA-Z\s]+$', message="الاسم يجب أن يحتوي على حروف فقط")
+        DataRequired(), Length(min=3),
+        Regexp(r'^[أ-يa-zA-Z\s]+$', message="حروف فقط")
     ])
-    age = IntegerField('العمر', validators=[
-        DataRequired(message="العمر مطلوب"),
-        NumberRange(min=1, max=120, message="العمر يجب أن يكون بين 1 و 120")
-    ])
+    age = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, max=120)])
     phone = TelField('رقم الهاتف', validators=[
-        DataRequired(message="رقم الهاتف مطلوب"),
-        Regexp(r'^\d{10,}$', message="رقم الهاتف يجب أن يحتوي على 10 أرقام على الأقل")
+        DataRequired(), Regexp(r'^\d{10,}$', message="10 أرقام على الأقل")
     ])
     pain = StringField('بماذا تشعر؟', validators=[
-        DataRequired(message="يرجى وصف الألم"),
-        Length(max=200),
-        Regexp(r'^[^<>"\']+$', message="المدخل يحتوي على رموز غير مسموح بها")
+        DataRequired(), Length(max=200),
+        Regexp(r'^[^<>"\']+$', message="رموز غير مسموح بها")
     ])
-    date = DateField('تاريخ الحجز', validators=[DataRequired(message="التاريخ مطلوب")])
-    appointment = SelectField('ميعاد الحجز', validators=[DataRequired(message="يرجى اختيار ميعاد")])
+    date = DateField('تاريخ الحجز', validators=[DataRequired()])
+    appointment = SelectField('ميعاد الحجز', validators=[DataRequired()], choices=[])
     submit = SubmitField('احجز الآن')
 
 
@@ -120,26 +109,20 @@ class LoginForm(FlaskForm):
     submit = SubmitField('تسجيل الدخول')
 
 
-def get_booked_slots(date):
-    bookings = Booking.query.filter_by(date=date).all()
-    return [b.appointment for b in bookings]
-
-
 @app.route('/')
 def index():
     today_str = get_egypt_today().strftime('%Y-%m-%d')
     date = request.args.get('date', today_str)
 
-    # التحقق من صحة التاريخ المطلوب
-    valid, result = is_valid_booking_date(date)
+    valid, _ = is_valid_booking_date(date)
     if not valid:
         date = today_str
 
     booked = get_booked_slots(date)
-    available_times = [slot for slot in all_slots if slot not in booked]
+    available_times = [s for s in all_slots if s not in booked]
 
     form = BookingForm()
-    form.appointment.choices = [(time, time) for time in available_times] if available_times else [('', 'لا توجد مواعيد متاحة')]
+    form.appointment.choices = [(t, t) for t in available_times] if available_times else [('', 'لا توجد مواعيد')]
     form.date.data = datetime.strptime(date, '%Y-%m-%d')
 
     return render_template('index.html', form=form, available_times=available_times, selected_date=date)
@@ -150,77 +133,101 @@ def available_slots():
     date = request.args.get('date')
     if not date:
         return jsonify({'available_times': [], 'error': 'التاريخ مطلوب'})
-
     valid, result = is_valid_booking_date(date)
     if not valid:
         return jsonify({'available_times': [], 'error': result})
-
     booked = get_booked_slots(date)
-    available_times = [slot for slot in all_slots if slot not in booked]
+    available_times = [s for s in all_slots if s not in booked]
     return jsonify({'available_times': available_times})
 
 
-# ✅ تصليح رئيسي: استخدام WTForms validate_on_submit بدل قراءة request.form مباشرة
-@app.route('/submit', methods=['GET', 'POST'])
+@app.route('/submit', methods=['POST'])
 @limiter.limit("5 per minute")
 def submit():
-    today_str = get_egypt_today().strftime('%Y-%m-%d')
-    date_param = request.args.get('date', today_str)
+    name        = request.form.get('name', '').strip()
+    age_str     = request.form.get('age', '').strip()
+    phone       = request.form.get('phone', '').strip()
+    pain        = request.form.get('pain', '').strip()
+    date_str    = request.form.get('date', '').strip()
+    appointment = request.form.get('appointment', '').strip()
+    conditions  = request.form.getlist('conditions')
 
-    booked = get_booked_slots(date_param)
-    available_times = [slot for slot in all_slots if slot not in booked]
+    # ── Validation ──
+    errors = []
 
-    form = BookingForm()
-    form.appointment.choices = [(time, time) for time in available_times] if available_times else [('', 'لا توجد مواعيد')]
+    if not name or len(name) < 3:
+        errors.append("الاسم يجب أن يكون 3 أحرف على الأقل")
 
-    if form.validate_on_submit():
-        date_str = form.date.data.strftime('%Y-%m-%d')
+    try:
+        age = int(age_str)
+        if age < 1 or age > 120:
+            errors.append("العمر غير منطقي")
+    except (ValueError, TypeError):
+        errors.append("العمر غير صالح")
+        age = 0
 
-        # التحقق من صحة التاريخ مرة أخرى في الـ backend
+    if not phone.isdigit() or len(phone) < 10:
+        errors.append("رقم الهاتف يجب أن يحتوي على 10 أرقام على الأقل")
+
+    if not pain:
+        errors.append("يرجى وصف الألم")
+
+    if not date_str:
+        errors.append("التاريخ مطلوب")
+    else:
         valid, result = is_valid_booking_date(date_str)
         if not valid:
-            flash(result, 'error')
-            return render_template('index.html', form=form, available_times=available_times, selected_date=date_str)
+            errors.append(result)
 
-        appointment = form.appointment.data
+    if not appointment:
+        errors.append("يرجى اختيار ميعاد")
+    elif date_str and appointment in get_booked_slots(date_str):
+        errors.append("هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر")
 
-        # ✅ تصليح Race Condition: استخدام DB transaction مع exception handling
-        try:
-            new_booking = Booking(
-                name=html.escape(form.name.data.strip()),
-                age=form.age.data,
-                phone=form.phone.data.strip(),
-                pain=html.escape(form.pain.data.strip()),
-                conditions=', '.join(request.form.getlist('conditions')),
-                date=date_str,
-                appointment=appointment
-            )
-            db.session.add(new_booking)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            flash("هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر.", 'error')
-            return render_template('index.html', form=form, available_times=available_times, selected_date=date_str)
+    if errors:
+        for e in errors:
+            flash(e, 'error')
+        return redirect('/')
 
-        # إرسال الإيميل بشكل آمن (لو فشل ما يوقفش الحجز)
-        try:
-            message = f"""✅ حجز جديد - مركز الهادي للعلاج الطبيعي
+    # ── حفظ في DB ──
+    try:
+        new_booking = Booking(
+            name=html.escape(name),
+            age=age,
+            phone=phone,
+            pain=html.escape(pain),
+            conditions=', '.join(conditions),
+            date=date_str,
+            appointment=appointment
+        )
+        db.session.add(new_booking)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر.", 'error')
+        return redirect('/')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"DB error: {e}")
+        flash("حدث خطأ، يرجى المحاولة مرة أخرى.", 'error')
+        return redirect('/')
 
-الاسم: {form.name.data}
-العمر: {form.age.data}
-الهاتف: {form.phone.data}
+    # ── إرسال إيميل في background (عشان مايحرقش الـ worker) ──
+    message = f"""حجز جديد - مركز الهادي
+
+الاسم: {name}
+العمر: {age}
+الهاتف: {phone}
 التاريخ: {date_str}
-الوصف: {form.pain.data}
-الحالات: {', '.join(request.form.getlist('conditions')) or 'لا يوجد'}
-الميعاد: {appointment}"""
-            send_email("tetoelsalahy@gmail.com", "✅ حجز جديد - عيادة الهادي", message)
-        except Exception as e:
-            app.logger.error(f"Email sending failed: {e}")
+الميعاد: {appointment}
+الوصف: {pain}
+الحالات: {', '.join(conditions) or 'لا يوجد'}"""
+    t = threading.Thread(target=send_email_safe,
+                         args=("tetoelsalahy@gmail.com", "حجز جديد - عيادة الهادي", message),
+                         daemon=True)
+    t.start()
 
-        return redirect('/confirmation')
-
-    # إذا كان GET أو validation فشل — ارجع للصفحة الرئيسية
-    return redirect('/')
+    return redirect('/confirmation')
 
 
 @app.route('/confirmation')
@@ -233,17 +240,12 @@ def confirmation():
 def login():
     form = LoginForm()
     error = None
-    env_username = os.getenv("ADMIN_USERNAME")
-    env_password_hash = os.getenv("ADMIN_PASSWORD")
-
     if form.validate_on_submit():
-        if form.username.data == env_username and check_password_hash(env_password_hash, form.password.data):
+        if (form.username.data == os.getenv("ADMIN_USERNAME") and
+                check_password_hash(os.getenv("ADMIN_PASSWORD"), form.password.data)):
             session['admin_logged_in'] = True
-            session.permanent = False  # session تنتهي لما يقفل المتصفح
             return redirect('/bookings')
-        else:
-            error = "بيانات الدخول غير صحيحة"
-
+        error = "بيانات الدخول غير صحيحة"
     return render_template('login.html', form=form, error=error)
 
 
@@ -257,24 +259,19 @@ def logout():
 def bookings():
     if not session.get('admin_logged_in'):
         return redirect('/login')
-
-    # دعم البحث والفلترة
-    search = request.args.get('search', '').strip()
+    search      = request.args.get('search', '').strip()
     date_filter = request.args.get('date_filter', '').strip()
-
     query = Booking.query
     if search:
-        query = query.filter(
-            db.or_(
-                Booking.name.ilike(f'%{search}%'),
-                Booking.phone.ilike(f'%{search}%')
-            )
-        )
+        query = query.filter(db.or_(
+            Booking.name.ilike(f'%{search}%'),
+            Booking.phone.ilike(f'%{search}%')
+        ))
     if date_filter:
         query = query.filter_by(date=date_filter)
-
     all_bookings = query.order_by(Booking.date, Booking.appointment).all()
-    return render_template('bookings.html', bookings=all_bookings, search=search, date_filter=date_filter)
+    return render_template('bookings.html', bookings=all_bookings,
+                           search=search, date_filter=date_filter)
 
 
 @app.route('/delete_booking/<int:booking_id>', methods=['POST'])
@@ -288,20 +285,23 @@ def delete_booking(booking_id):
     return redirect('/bookings')
 
 
-def send_email(to, subject, body):
-    sender = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
-    password = os.getenv("EMAIL_PASSWORD")
-    if not password:
-        app.logger.warning("EMAIL_PASSWORD not set, skipping email")
-        return
-    msg = MIMEText(body, 'plain', 'utf-8')
-    msg['Subject'] = subject
-    msg['From'] = sender
-    msg['To'] = to
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(sender, password)
-        server.sendmail(sender, to, msg.as_string())
+def send_email_safe(to, subject, body):
+    """بتشتغل في background thread — مش بتأثر على الـ request"""
+    try:
+        sender   = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
+        password = os.getenv("EMAIL_PASSWORD")
+        if not password:
+            return
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = subject
+        msg['From']    = sender
+        msg['To']      = to
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10) as server:
+            server.login(sender, password)
+            server.sendmail(sender, to, msg.as_string())
+    except Exception as e:
+        app.logger.error(f"Email error (background): {e}")
 
 
 if __name__ == '__main__':
-    app.run(debug=False)  # ✅ تصليح: debug=False في الـ production
+    app.run(debug=False)
