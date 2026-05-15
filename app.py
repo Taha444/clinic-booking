@@ -1,16 +1,15 @@
-import os
-import threading
-import html
-from flask import Flask, render_template, request, redirect, session, jsonify, flash
+import os, threading, html, csv, io, secrets
+from functools import wraps
+from datetime import datetime, timedelta
+from flask import (Flask, render_template, request, redirect,
+                   session, jsonify, flash, send_file, url_for)
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm, CSRFProtect
-from wtforms import StringField, IntegerField, TelField, DateField, SelectField, SubmitField, PasswordField, TextAreaField
+from wtforms import (StringField, IntegerField, TelField, DateField,
+                     SelectField, SubmitField, PasswordField, TextAreaField)
 from wtforms.validators import DataRequired, NumberRange, Length, Regexp, Optional
-from datetime import datetime
 import pytz
 from dotenv import load_dotenv
-import smtplib
-from email.mime.text import MIMEText
 from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -20,214 +19,301 @@ from sqlalchemy.exc import IntegrityError
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY")
+app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
 
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SECURE']   = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
 
-csrf = CSRFProtect(app)
+db     = SQLAlchemy(app)
+csrf   = CSRFProtect(app)
 limiter = Limiter(get_remote_address, app=app)
 
+CAIRO = pytz.timezone('Africa/Cairo')
 
+# ─────────────────────────────────────────────
+#  SECURITY HEADERS
+# ─────────────────────────────────────────────
 @app.after_request
-def add_security_headers(response):
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
-    response.headers['X-Content-Type-Options'] = 'nosniff'
+def security_headers(response):
+    response.headers['X-Frame-Options']           = 'DENY'
+    response.headers['X-Content-Type-Options']    = 'nosniff'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
 
-# ══════════════════════════════════════════
+# ─────────────────────────────────────────────
 #  MODELS
-# ══════════════════════════════════════════
-
+# ─────────────────────────────────────────────
 class Booking(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     name        = db.Column(db.String(100), nullable=False)
-    age         = db.Column(db.Integer, nullable=False)
-    phone       = db.Column(db.String(20), nullable=False)
-    pain        = db.Column(db.String(200), nullable=False)
-    conditions  = db.Column(db.String(200), nullable=True)
-    date        = db.Column(db.String(20), nullable=False)
-    appointment = db.Column(db.String(20), nullable=False)
+    age         = db.Column(db.Integer,     nullable=False)
+    phone       = db.Column(db.String(20),  nullable=False)
+    pain        = db.Column(db.String(300), nullable=False)
+    conditions  = db.Column(db.String(300))
+    date        = db.Column(db.String(20),  nullable=False)
+    appointment = db.Column(db.String(20),  nullable=False)
+    status      = db.Column(db.String(20),  default='confirmed')   # confirmed/cancelled
+    cancel_token= db.Column(db.String(64),  unique=True)           # توكن الإلغاء
+    created_at  = db.Column(db.DateTime,    default=datetime.utcnow)
+    reminder_sent = db.Column(db.Boolean,   default=False)
 
     __table_args__ = (
         UniqueConstraint('date', 'appointment', name='uq_date_appointment'),
     )
+    # العلاقة بملاحظات الجلسة
+    session_notes = db.relationship('SessionNote', backref='booking', lazy=True)
+    # العلاقة بالتقييم
+    rating = db.relationship('BookingRating', backref='booking', uselist=False)
 
 
 class PatientProfile(db.Model):
-    """ملف المريض — يُنشأ تلقائياً أول حجز، ويُحدَّث مع كل حجز جديد"""
-    id              = db.Column(db.Integer, primary_key=True)
-    name            = db.Column(db.String(100), nullable=False)
-    phone           = db.Column(db.String(20), nullable=False, unique=True, index=True)
-    age             = db.Column(db.Integer)
-    conditions      = db.Column(db.String(300))          # الحالات المزمنة
-    first_visit     = db.Column(db.String(20))           # تاريخ أول زيارة
-    last_visit      = db.Column(db.String(20))           # تاريخ آخر زيارة
-    total_visits    = db.Column(db.Integer, default=0)
-    # ملاحظات الدكتور العامة على المريض
-    doctor_notes    = db.Column(db.Text, nullable=True)
-    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    """ملف المريض — يُنشأ تلقائياً أول حجز"""
+    id           = db.Column(db.Integer, primary_key=True)
+    name         = db.Column(db.String(100), nullable=False)
+    phone        = db.Column(db.String(20),  nullable=False, unique=True, index=True)
+    age          = db.Column(db.Integer)
+    conditions   = db.Column(db.String(500))
+    first_visit  = db.Column(db.String(20))
+    last_visit   = db.Column(db.String(20))
+    total_visits = db.Column(db.Integer, default=0)
+    doctor_notes = db.Column(db.Text)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # علاقة: ملاحظات الجلسات
-    session_notes   = db.relationship('SessionNote', backref='patient',
-                                      lazy=True, order_by='SessionNote.date.desc()')
+    session_notes = db.relationship('SessionNote', backref='patient',
+                                    lazy=True, order_by='SessionNote.date.desc()')
 
 
 class SessionNote(db.Model):
     """ملاحظة الدكتور على كل جلسة"""
     id           = db.Column(db.Integer, primary_key=True)
     patient_id   = db.Column(db.Integer, db.ForeignKey('patient_profile.id'), nullable=False)
-    booking_id   = db.Column(db.Integer, db.ForeignKey('booking.id'), nullable=True)
+    booking_id   = db.Column(db.Integer, db.ForeignKey('booking.id'))
     date         = db.Column(db.String(20), nullable=False)
     appointment  = db.Column(db.String(20))
-    complaint    = db.Column(db.String(300))             # الشكوى في هذه الجلسة
-    diagnosis    = db.Column(db.Text)                   # التشخيص
-    treatment    = db.Column(db.Text)                   # العلاج المُعطى
-    progress     = db.Column(db.String(50))             # التحسن: ممتاز / جيد / لا تحسن / تراجع
-    next_session = db.Column(db.String(200))            # توصيات الجلسة القادمة
+    complaint    = db.Column(db.String(300))
+    diagnosis    = db.Column(db.Text)
+    treatment    = db.Column(db.Text)
+    progress     = db.Column(db.String(50))   # ممتاز/جيد/لا تحسن/تراجع
+    next_session = db.Column(db.String(300))
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class BookingRating(db.Model):
+    """تقييم المريض بعد الجلسة"""
+    id         = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.Integer, db.ForeignKey('booking.id'), nullable=False, unique=True)
+    stars      = db.Column(db.Integer, nullable=False)   # 1-5
+    comment    = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 with app.app_context():
     db.create_all()
 
 
-# ══════════════════════════════════════════
+# ─────────────────────────────────────────────
 #  HELPERS
-# ══════════════════════════════════════════
-
-all_slots = []
-for hour in range(3, 11):
-    all_slots.append(f"{hour}:00 PM")
-    all_slots.append(f"{hour}:30 PM")
+# ─────────────────────────────────────────────
+ALL_SLOTS = [f"{h}:{m} PM" for h in range(3, 11) for m in ('00', '30')]
 
 
-def get_egypt_today():
-    return datetime.now(pytz.timezone('Africa/Cairo')).date()
+def egypt_today():
+    return datetime.now(CAIRO).date()
 
 
-def is_valid_booking_date(date_str):
+def valid_date(date_str):
     try:
-        selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        today = get_egypt_today()
-        if selected_date.weekday() == 4:
+        d = datetime.strptime(date_str, '%Y-%m-%d').date()
+        if d.weekday() == 4:
             return False, "العيادة مغلقة يوم الجمعة"
-        if selected_date < today:
+        if d < egypt_today():
             return False, "لا يمكن الحجز في تاريخ سابق"
-        return True, selected_date
+        return True, d
     except ValueError:
         return False, "تاريخ غير صالح"
 
 
-def get_booked_slots(date):
-    return [b.appointment for b in Booking.query.filter_by(date=date).all()]
+def booked_slots(date):
+    return [b.appointment for b in
+            Booking.query.filter_by(date=date, status='confirmed').all()]
 
 
-def upsert_patient_profile(booking):
-    """إنشاء أو تحديث ملف المريض بعد كل حجز"""
-    profile = PatientProfile.query.filter_by(phone=booking.phone).first()
-    if profile:
-        # تحديث بيانات موجودة
-        profile.last_visit   = booking.date
-        profile.total_visits = (profile.total_visits or 0) + 1
-        profile.age          = booking.age
-        # دمج الحالات (إضافة جديدة بدون تكرار)
+def upsert_patient(booking):
+    p = PatientProfile.query.filter_by(phone=booking.phone).first()
+    if p:
+        p.last_visit   = booking.date
+        p.total_visits = (p.total_visits or 0) + 1
+        p.age          = booking.age
         if booking.conditions:
-            old = set(c.strip() for c in (profile.conditions or '').split(',') if c.strip())
-            new = set(c.strip() for c in booking.conditions.split(',') if c.strip())
-            profile.conditions = ', '.join(old | new)
-        profile.updated_at = datetime.utcnow()
+            old = {c.strip() for c in (p.conditions or '').split(',') if c.strip()}
+            new = {c.strip() for c in booking.conditions.split(',')   if c.strip()}
+            p.conditions = ', '.join(old | new)
+        p.updated_at = datetime.utcnow()
     else:
-        profile = PatientProfile(
-            name         = booking.name,
-            phone        = booking.phone,
-            age          = booking.age,
-            conditions   = booking.conditions,
-            first_visit  = booking.date,
-            last_visit   = booking.date,
-            total_visits = 1,
-        )
-        db.session.add(profile)
-    db.session.flush()   # عشان نجيب الـ id لو جديد
-    return profile
+        p = PatientProfile(
+            name=booking.name, phone=booking.phone, age=booking.age,
+            conditions=booking.conditions,
+            first_visit=booking.date, last_visit=booking.date, total_visits=1)
+        db.session.add(p)
+    db.session.flush()
+    return p
 
 
-# ══════════════════════════════════════════
+def admin_required(f):
+    @wraps(f)
+    def dec(*a, **kw):
+        if not session.get('admin_logged_in'):
+            return redirect('/login')
+        return f(*a, **kw)
+    return dec
+
+
+# ─────────────────────────────────────────────
 #  FORMS
-# ══════════════════════════════════════════
-
+# ─────────────────────────────────────────────
 class BookingForm(FlaskForm):
-    name = StringField('الاسم', validators=[
+    name  = StringField('الاسم', validators=[
         DataRequired(), Length(min=3),
-        Regexp(r'^[أ-يa-zA-Z\s]+$', message="حروف فقط")
-    ])
-    age  = IntegerField('العمر', validators=[DataRequired(), NumberRange(min=1, max=120)])
-    phone = TelField('رقم الهاتف', validators=[
-        DataRequired(), Regexp(r'^\d{10,}$', message="10 أرقام على الأقل")
-    ])
-    pain = StringField('بماذا تشعر؟', validators=[
-        DataRequired(), Length(max=200),
-        Regexp(r'^[^<>"\']+$', message="رموز غير مسموح بها")
-    ])
-    date        = DateField('تاريخ الحجز', validators=[DataRequired()])
-    appointment = SelectField('ميعاد الحجز', validators=[DataRequired()], choices=[])
+        Regexp(r'^[أ-يa-zA-Z\s]+$', message="حروف فقط")])
+    age   = IntegerField('العمر', validators=[DataRequired(), NumberRange(1, 120)])
+    phone = TelField('الهاتف',   validators=[
+        DataRequired(), Regexp(r'^\d{10,}$', message="10 أرقام على الأقل")])
+    pain  = StringField('الشكوى', validators=[
+        DataRequired(), Length(max=300),
+        Regexp(r'^[^<>"\']+$', message="رموز غير مسموح بها")])
+    date        = DateField('التاريخ', validators=[DataRequired()])
+    appointment = SelectField('الميعاد', validators=[DataRequired()], choices=[])
     submit      = SubmitField('احجز الآن')
 
 
 class LoginForm(FlaskForm):
     username = StringField('اسم المستخدم', validators=[DataRequired()])
     password = PasswordField('كلمة السر',  validators=[DataRequired()])
-    submit   = SubmitField('تسجيل الدخول')
+    submit   = SubmitField('دخول')
 
 
 class SessionNoteForm(FlaskForm):
-    complaint    = StringField('الشكوى', validators=[Optional(), Length(max=300)])
-    diagnosis    = TextAreaField('التشخيص', validators=[Optional(), Length(max=1000)])
+    complaint    = StringField('الشكوى',          validators=[Optional(), Length(max=300)])
+    diagnosis    = TextAreaField('التشخيص',        validators=[Optional(), Length(max=1000)])
     treatment    = TextAreaField('العلاج المُعطى', validators=[Optional(), Length(max=1000)])
     progress     = SelectField('مستوى التحسن', choices=[
-        ('', '— اختر —'),
-        ('ممتاز', '✅ ممتاز'),
-        ('جيد', '👍 جيد'),
-        ('لا تحسن', '➖ لا تحسن'),
-        ('تراجع', '⚠️ تراجع'),
-    ], validators=[Optional()])
+        ('', '— اختر —'), ('ممتاز', '✅ ممتاز'), ('جيد', '👍 جيد'),
+        ('لا تحسن', '➖ لا تحسن'), ('تراجع', '⚠️ تراجع')],
+        validators=[Optional()])
     next_session = StringField('توصيات الجلسة القادمة', validators=[Optional(), Length(max=300)])
     submit       = SubmitField('حفظ الملاحظة')
 
 
 class DoctorNotesForm(FlaskForm):
-    doctor_notes = TextAreaField('ملاحظات الدكتور العامة', validators=[Optional(), Length(max=2000)])
+    doctor_notes = TextAreaField('ملاحظات عامة', validators=[Optional(), Length(max=2000)])
     submit       = SubmitField('حفظ')
 
 
-# ══════════════════════════════════════════
-#  PUBLIC ROUTES
-# ══════════════════════════════════════════
+# ─────────────────────────────────────────────
+#  WHATSAPP  (Twilio / CallMeBot)
+# ─────────────────────────────────────────────
+import urllib.request, urllib.parse
+import threading
 
+def send_whatsapp(message):
+    """إرسال واتساب عبر CallMeBot (مجاني) أو Twilio"""
+    try:
+        # اللينك كامل مع الرقم والـ API Key
+        url = ("https://api.callmebot.com/whatsapp.php"
+               "?phone=201061598622"
+               f"&text={urllib.parse.quote(message)}"
+               "&apikey=6095069")
+        urllib.request.urlopen(url, timeout=10)
+    except Exception as e:
+        app.logger.error(f"WhatsApp error: {e}")
+
+
+def notify_booking(name, date, appointment):
+    """إشعار واتساب عند الحجز"""
+    msg = (f"✅ تم تأكيد حجزك في مركز الهادي للعلاج الطبيعي\n"
+           f"👤 الاسم: {name}\n📅 التاريخ: {date}\n🕐 الميعاد: {appointment}\n\n"
+           f"💚 نتمنى لك الشفاء العاجل!")
+    threading.Thread(target=send_whatsapp, args=(msg,), daemon=True).start()
+
+
+def notify_reminder(name, date, appointment):
+    """تذكير قبل الموعد بـ 24 ساعة"""
+    msg = (f"⏰ تذكير بموعدك غداً في مركز الهادي للعلاج الطبيعي\n"
+           f"👤 {name}\n📅 {date}\n🕐 {appointment}\n\n"
+           f"يرجى الحضور قبل الموعد بـ 10 دقائق 🙏")
+    threading.Thread(target=send_whatsapp, args=(msg,), daemon=True).start()
+
+
+# ─────────────────────────────────────────────
+#  AUTO REMINDER — بيشتغل في background
+# ─────────────────────────────────────────────
+def reminder_worker():
+    """بيشتغل كل ساعة ويبعت تذكير للمرضى اللي موعدهم بكره"""
+    import time
+    while True:
+        time.sleep(3600)   # كل ساعة
+        try:
+            with app.app_context():
+                tomorrow = (egypt_today() + timedelta(days=1)).strftime('%Y-%m-%d')
+                pending  = Booking.query.filter_by(
+                    date=tomorrow, status='confirmed', reminder_sent=False).all()
+                for b in pending:
+                    notify_reminder(b.name, b.phone, b.date, b.appointment)
+                    b.reminder_sent = True
+                db.session.commit()
+                if pending:
+                    app.logger.info(f"Reminders sent: {len(pending)}")
+        except Exception as e:
+            app.logger.error(f"Reminder worker error: {e}")
+
+
+# تشغيل الـ reminder في الخلفية عند بدء التطبيق
+threading.Thread(target=reminder_worker, daemon=True).start()
+
+
+# ─────────────────────────────────────────────
+#  EMAIL
+# ─────────────────────────────────────────────
+def send_email_safe(to, subject, body):
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        sender   = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
+        password = os.getenv("EMAIL_PASSWORD")
+        if not password:
+            return
+        msg             = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject']  = subject
+        msg['From']     = sender
+        msg['To']       = to
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10) as s:
+            s.login(sender, password)
+            s.sendmail(sender, to, msg.as_string())
+    except Exception as e:
+        app.logger.error(f"Email error: {e}")
+
+
+# ─────────────────────────────────────────────
+#  PUBLIC ROUTES
+# ─────────────────────────────────────────────
 @app.route('/')
 def index():
-    today_str = get_egypt_today().strftime('%Y-%m-%d')
-    date      = request.args.get('date', today_str)
-    valid, _  = is_valid_booking_date(date)
-    if not valid:
-        date = today_str
+    today = egypt_today().strftime('%Y-%m-%d')
+    date  = request.args.get('date', today)
+    ok, _ = valid_date(date)
+    if not ok:
+        date = today
 
-    booked          = get_booked_slots(date)
-    available_times = [s for s in all_slots if s not in booked]
-
-    form = BookingForm()
-    form.appointment.choices = [(t, t) for t in available_times] if available_times else [('', 'لا توجد مواعيد')]
+    free  = [s for s in ALL_SLOTS if s not in booked_slots(date)]
+    form  = BookingForm()
+    form.appointment.choices = [(t, t) for t in free] if free else [('', 'لا توجد مواعيد')]
     form.date.data = datetime.strptime(date, '%Y-%m-%d')
-
-    return render_template('index.html', form=form,
-                           available_times=available_times, selected_date=date)
+    return render_template('index.html', form=form, available_times=free, selected_date=date)
 
 
 @app.route('/available_slots')
@@ -235,74 +321,56 @@ def available_slots():
     date = request.args.get('date')
     if not date:
         return jsonify({'available_times': [], 'error': 'التاريخ مطلوب'})
-    valid, result = is_valid_booking_date(date)
-    if not valid:
+    ok, result = valid_date(date)
+    if not ok:
         return jsonify({'available_times': [], 'error': result})
-    booked = get_booked_slots(date)
-    return jsonify({'available_times': [s for s in all_slots if s not in booked]})
+    return jsonify({'available_times': [s for s in ALL_SLOTS if s not in booked_slots(date)]})
 
 
 @app.route('/submit', methods=['POST'])
 @limiter.limit("5 per minute")
 def submit():
     name        = request.form.get('name', '').strip()
-    age_str     = request.form.get('age', '').strip()
     phone       = request.form.get('phone', '').strip()
     pain        = request.form.get('pain', '').strip()
     date_str    = request.form.get('date', '').strip()
     appointment = request.form.get('appointment', '').strip()
     conditions  = request.form.getlist('conditions')
+    age_str     = request.form.get('age', '').strip()
 
     errors = []
-    if not name or len(name) < 3:
-        errors.append("الاسم يجب أن يكون 3 أحرف على الأقل")
+    age = 0
+    if not name or len(name) < 3:          errors.append("الاسم يجب أن يكون 3 أحرف على الأقل")
+    if not phone.isdigit() or len(phone)<10: errors.append("رقم الهاتف غير صالح")
+    if not pain:                            errors.append("يرجى وصف الألم")
     try:
         age = int(age_str)
-        if not (1 <= age <= 120):
-            errors.append("العمر غير منطقي")
-    except (ValueError, TypeError):
-        errors.append("العمر غير صالح")
-        age = 0
-    if not phone.isdigit() or len(phone) < 10:
-        errors.append("رقم الهاتف غير صالح")
-    if not pain:
-        errors.append("يرجى وصف الألم")
-    if not date_str:
-        errors.append("التاريخ مطلوب")
+        if not (1 <= age <= 120):          errors.append("العمر غير منطقي")
+    except:                                 errors.append("العمر غير صالح")
+    if not date_str:                        errors.append("التاريخ مطلوب")
     else:
-        valid, result = is_valid_booking_date(date_str)
-        if not valid:
-            errors.append(result)
-    if not appointment:
-        errors.append("يرجى اختيار ميعاد")
-    elif date_str and appointment in get_booked_slots(date_str):
-        errors.append("هذا الموعد محجوز بالفعل")
-
+        ok, res = valid_date(date_str)
+        if not ok:                         errors.append(res)
+    if not appointment:                    errors.append("يرجى اختيار ميعاد")
+    elif date_str and appointment in booked_slots(date_str):
+                                           errors.append("هذا الموعد محجوز بالفعل")
     if errors:
-        for e in errors:
-            flash(e, 'error')
+        for e in errors: flash(e, 'error')
         return redirect('/')
 
+    token = secrets.token_urlsafe(32)
     try:
-        booking = Booking(
-            name        = html.escape(name),
-            age         = age,
-            phone       = phone,
-            pain        = html.escape(pain),
-            conditions  = ', '.join(conditions),
-            date        = date_str,
-            appointment = appointment,
-        )
-        db.session.add(booking)
-        db.session.flush()           # نجيب الـ booking.id
-
-        # ✅ إنشاء / تحديث ملف المريض تلقائياً
-        upsert_patient_profile(booking)
+        b = Booking(
+            name=html.escape(name), age=age, phone=phone,
+            pain=html.escape(pain), conditions=', '.join(conditions),
+            date=date_str, appointment=appointment, cancel_token=token)
+        db.session.add(b)
+        db.session.flush()
+        upsert_patient(b)
         db.session.commit()
-
     except IntegrityError:
         db.session.rollback()
-        flash("هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر.", 'error')
+        flash("هذا الموعد محجوز بالفعل.", 'error')
         return redirect('/')
     except Exception as e:
         db.session.rollback()
@@ -310,41 +378,85 @@ def submit():
         flash("حدث خطأ، يرجى المحاولة مرة أخرى.", 'error')
         return redirect('/')
 
-    message = f"""حجز جديد - مركز الهادي
-
-الاسم: {name}
-العمر: {age}
-الهاتف: {phone}
-التاريخ: {date_str}
-الميعاد: {appointment}
-الوصف: {pain}
-الحالات: {', '.join(conditions) or 'لا يوجد'}"""
+    # إشعارات
+    notify_booking(name, phone, date_str, appointment)
+    admin_email_body = (f"حجز جديد\nالاسم: {name}\nالعمر: {age}\n"
+                        f"الهاتف: {phone}\nالتاريخ: {date_str}\n"
+                        f"الميعاد: {appointment}\nالوصف: {pain}\n"
+                        f"الحالات: {', '.join(conditions) or 'لا يوجد'}")
     threading.Thread(target=send_email_safe,
-                     args=("tetoelsalahy@gmail.com", "حجز جديد - عيادة الهادي", message),
+                     args=("tetoelsalahy@gmail.com", "حجز جديد - عيادة الهادي", admin_email_body),
                      daemon=True).start()
 
-    return redirect('/confirmation')
+    return redirect(f'/confirmation?token={token}')
 
 
 @app.route('/confirmation')
 def confirmation():
-    return render_template('confirmation.html')
+    token = request.args.get('token', '')
+    b = Booking.query.filter_by(cancel_token=token).first()
+    return render_template('confirmation.html', booking=b, token=token)
 
 
-# ══════════════════════════════════════════
+# ─────────────────────────────────────────────
+#  CANCEL / EDIT BOOKING  (بدون login)
+# ─────────────────────────────────────────────
+@app.route('/cancel/<token>')
+def cancel_booking_page(token):
+    b = Booking.query.filter_by(cancel_token=token).first_or_404()
+    return render_template('cancel_booking.html', booking=b)
+
+
+@app.route('/cancel/<token>/confirm', methods=['POST'])
+@limiter.limit("3 per minute")
+def cancel_booking_confirm(token):
+    b = Booking.query.filter_by(cancel_token=token).first_or_404()
+    if b.status == 'cancelled':
+        flash("هذا الحجز ملغى بالفعل", 'error')
+        return redirect('/')
+    b.status = 'cancelled'
+    db.session.commit()
+    # إشعار واتساب بالإلغاء
+    msg = f"❌ تم إلغاء حجزك في مركز الهادي\nالتاريخ: {b.date} — {b.appointment}\nللحجز مرة أخرى زور الموقع 💚"
+    threading.Thread(target=send_whatsapp, args=(b.phone, msg), daemon=True).start()
+    return render_template('cancel_success.html', booking=b)
+
+
+# ─────────────────────────────────────────────
+#  RATING SYSTEM
+# ─────────────────────────────────────────────
+@app.route('/rate/<token>', methods=['GET', 'POST'])
+@limiter.limit("3 per minute")
+def rate_booking(token):
+    b = Booking.query.filter_by(cancel_token=token).first_or_404()
+    if b.rating:
+        return render_template('rate.html', booking=b, already_rated=True)
+    if request.method == 'POST':
+        stars   = int(request.form.get('stars', 0))
+        comment = html.escape(request.form.get('comment', '').strip()[:500])
+        if not (1 <= stars <= 5):
+            flash("يرجى اختيار تقييم من 1 إلى 5", 'error')
+            return redirect(f'/rate/{token}')
+        r = BookingRating(booking_id=b.id, stars=stars, comment=comment)
+        db.session.add(r)
+        db.session.commit()
+        return render_template('rate.html', booking=b, done=True)
+    return render_template('rate.html', booking=b)
+
+
+# ─────────────────────────────────────────────
 #  ADMIN AUTH
-# ══════════════════════════════════════════
-
+# ─────────────────────────────────────────────
 @app.route('/login', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")
 def login():
-    form  = LoginForm()
+    form = LoginForm()
     error = None
     if form.validate_on_submit():
         if (form.username.data == os.getenv("ADMIN_USERNAME") and
-                check_password_hash(os.getenv("ADMIN_PASSWORD"), form.password.data)):
+                check_password_hash(os.getenv("ADMIN_PASSWORD", ""), form.password.data)):
             session['admin_logged_in'] = True
-            return redirect('/bookings')
+            return redirect('/dashboard')
         error = "بيانات الدخول غير صحيحة"
     return render_template('login.html', form=form, error=error)
 
@@ -355,167 +467,225 @@ def logout():
     return redirect('/login')
 
 
-def admin_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get('admin_logged_in'):
-            return redirect('/login')
-        return f(*args, **kwargs)
-    return decorated
+# ─────────────────────────────────────────────
+#  ADMIN — DASHBOARD
+# ─────────────────────────────────────────────
+@app.route('/dashboard')
+@admin_required
+def dashboard():
+    today      = egypt_today().strftime('%Y-%m-%d')
+    total      = Booking.query.filter_by(status='confirmed').count()
+    today_count= Booking.query.filter_by(date=today, status='confirmed').count()
+    patients_n = PatientProfile.query.count()
+    cancelled  = Booking.query.filter_by(status='cancelled').count()
+
+    # آخر 7 أيام — حجوزات يومية
+    days_data = []
+    for i in range(6, -1, -1):
+        d    = (egypt_today() - timedelta(days=i)).strftime('%Y-%m-%d')
+        cnt  = Booking.query.filter_by(date=d, status='confirmed').count()
+        days_data.append({'date': d, 'count': cnt})
+
+    # توزيع الحالات
+    from sqlalchemy import func
+    conditions_raw = db.session.query(Booking.conditions).filter(
+        Booking.conditions != '', Booking.conditions != None).all()
+    cond_count = {}
+    for (c,) in conditions_raw:
+        for item in c.split(','):
+            item = item.strip()
+            if item:
+                cond_count[item] = cond_count.get(item, 0) + 1
+
+    # متوسط التقييم
+    ratings = BookingRating.query.all()
+    avg_rating = round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else 0
+
+    # أحدث 5 حجوزات
+    recent = Booking.query.filter_by(status='confirmed')\
+                          .order_by(Booking.created_at.desc()).limit(5).all()
+
+    return render_template('dashboard.html',
+        total=total, today_count=today_count,
+        patients_n=patients_n, cancelled=cancelled,
+        days_data=days_data, cond_count=cond_count,
+        avg_rating=avg_rating, ratings_count=len(ratings),
+        recent=recent)
 
 
-# ══════════════════════════════════════════
-#  ADMIN — BOOKINGS
-# ══════════════════════════════════════════
-
+# ─────────────────────────────────────────────
+#  ADMIN — BOOKINGS + CALENDAR
+# ─────────────────────────────────────────────
 @app.route('/bookings')
 @admin_required
 def bookings():
     search      = request.args.get('search', '').strip()
     date_filter = request.args.get('date_filter', '').strip()
+    view        = request.args.get('view', 'table')   # table | calendar
     query = Booking.query
     if search:
         query = query.filter(db.or_(
             Booking.name.ilike(f'%{search}%'),
-            Booking.phone.ilike(f'%{search}%')
-        ))
+            Booking.phone.ilike(f'%{search}%')))
     if date_filter:
         query = query.filter_by(date=date_filter)
     all_bookings = query.order_by(Booking.date, Booking.appointment).all()
-    return render_template('bookings.html', bookings=all_bookings,
-                           search=search, date_filter=date_filter)
+
+    # بيانات Calendar — حجوزات الشهر الحالي
+    cal_data = {}
+    if view == 'calendar':
+        today = egypt_today()
+        first = today.replace(day=1)
+        last  = (first.replace(month=first.month % 12 + 1, day=1)
+                 if first.month < 12 else first.replace(year=first.year+1, month=1, day=1))
+        month_bookings = Booking.query.filter(
+            Booking.date >= first.strftime('%Y-%m-%d'),
+            Booking.date <  last.strftime('%Y-%m-%d'),
+            Booking.status == 'confirmed').all()
+        for b in month_bookings:
+            cal_data.setdefault(b.date, []).append(b)
+
+    return render_template('bookings.html',
+        bookings=all_bookings, search=search,
+        date_filter=date_filter, view=view,
+        cal_data=cal_data, today=egypt_today().strftime('%Y-%m-%d'))
 
 
-@app.route('/delete_booking/<int:booking_id>', methods=['POST'])
+@app.route('/delete_booking/<int:bid>', methods=['POST'])
 @admin_required
-def delete_booking(booking_id):
-    booking = Booking.query.get_or_404(booking_id)
-    db.session.delete(booking)
+def delete_booking(bid):
+    b = Booking.query.get_or_404(bid)
+    db.session.delete(b)
     db.session.commit()
-    flash("تم حذف الحجز بنجاح", 'success')
+    flash("تم حذف الحجز", 'success')
     return redirect('/bookings')
 
 
-# ══════════════════════════════════════════
-#  ADMIN — PATIENTS
-# ══════════════════════════════════════════
-
+# ─────────────────────────────────────────────
+#  ADMIN — PATIENTS + PROFILE + NOTES
+# ─────────────────────────────────────────────
 @app.route('/patients')
 @admin_required
 def patients():
-    """قائمة كل المرضى"""
     search = request.args.get('search', '').strip()
     query  = PatientProfile.query
     if search:
         query = query.filter(db.or_(
             PatientProfile.name.ilike(f'%{search}%'),
-            PatientProfile.phone.ilike(f'%{search}%'),
-        ))
+            PatientProfile.phone.ilike(f'%{search}%')))
     all_patients = query.order_by(PatientProfile.last_visit.desc()).all()
     return render_template('patients.html', patients=all_patients, search=search)
 
 
-@app.route('/patient/<int:patient_id>')
+@app.route('/patient/<int:pid>')
 @admin_required
-def patient_profile(patient_id):
-    """ملف المريض الكامل"""
-    patient = PatientProfile.query.get_or_404(patient_id)
-    # كل الحجوزات المرتبطة برقم تليفونه
-    bookings_history = (Booking.query
-                        .filter_by(phone=patient.phone)
-                        .order_by(Booking.date.desc())
-                        .all())
-    note_form   = SessionNoteForm()
-    doctor_form = DoctorNotesForm(doctor_notes=patient.doctor_notes)
+def patient_profile(pid):
+    p        = PatientProfile.query.get_or_404(pid)
+    history  = Booking.query.filter_by(phone=p.phone)\
+                            .order_by(Booking.date.desc()).all()
+    nf       = SessionNoteForm()
+    df       = DoctorNotesForm(doctor_notes=p.doctor_notes)
     return render_template('patient_profile.html',
-                           patient=patient,
-                           bookings_history=bookings_history,
-                           note_form=note_form,
-                           doctor_form=doctor_form)
+        patient=p, bookings_history=history, note_form=nf, doctor_form=df)
 
 
-@app.route('/patient/<int:patient_id>/add_note', methods=['POST'])
+@app.route('/patient/<int:pid>/add_note', methods=['POST'])
 @admin_required
-def add_session_note(patient_id):
-    """إضافة ملاحظة جلسة جديدة"""
-    patient = PatientProfile.query.get_or_404(patient_id)
-    form    = SessionNoteForm()
-    if form.validate_on_submit():
+def add_session_note(pid):
+    p  = PatientProfile.query.get_or_404(pid)
+    nf = SessionNoteForm()
+    if nf.validate_on_submit():
         note = SessionNote(
-            patient_id   = patient.id,
+            patient_id   = p.id,
             booking_id   = request.form.get('booking_id') or None,
-            date         = request.form.get('note_date') or get_egypt_today().strftime('%Y-%m-%d'),
+            date         = request.form.get('note_date') or egypt_today().strftime('%Y-%m-%d'),
             appointment  = request.form.get('note_appointment', ''),
-            complaint    = html.escape(form.complaint.data or ''),
-            diagnosis    = html.escape(form.diagnosis.data or ''),
-            treatment    = html.escape(form.treatment.data or ''),
-            progress     = form.progress.data or '',
-            next_session = html.escape(form.next_session.data or ''),
-        )
+            complaint    = html.escape(nf.complaint.data or ''),
+            diagnosis    = html.escape(nf.diagnosis.data or ''),
+            treatment    = html.escape(nf.treatment.data or ''),
+            progress     = nf.progress.data or '',
+            next_session = html.escape(nf.next_session.data or ''))
         db.session.add(note)
         db.session.commit()
         flash("✅ تم حفظ ملاحظة الجلسة", 'success')
-    else:
-        flash("خطأ في البيانات، يرجى المراجعة", 'error')
-    return redirect(f'/patient/{patient_id}')
+    return redirect(f'/patient/{pid}')
 
 
-@app.route('/patient/<int:patient_id>/update_notes', methods=['POST'])
+@app.route('/patient/<int:pid>/update_notes', methods=['POST'])
 @admin_required
-def update_doctor_notes(patient_id):
-    """تحديث الملاحظات العامة للدكتور"""
-    patient = PatientProfile.query.get_or_404(patient_id)
-    form    = DoctorNotesForm()
-    if form.validate_on_submit():
-        patient.doctor_notes = html.escape(form.doctor_notes.data or '')
-        patient.updated_at   = datetime.utcnow()
+def update_doctor_notes(pid):
+    p  = PatientProfile.query.get_or_404(pid)
+    df = DoctorNotesForm()
+    if df.validate_on_submit():
+        p.doctor_notes = html.escape(df.doctor_notes.data or '')
+        p.updated_at   = datetime.utcnow()
         db.session.commit()
         flash("✅ تم حفظ الملاحظات", 'success')
-    return redirect(f'/patient/{patient_id}')
+    return redirect(f'/patient/{pid}')
 
 
-@app.route('/patient/<int:patient_id>/delete_note/<int:note_id>', methods=['POST'])
+@app.route('/patient/<int:pid>/delete_note/<int:nid>', methods=['POST'])
 @admin_required
-def delete_session_note(patient_id, note_id):
-    note = SessionNote.query.get_or_404(note_id)
-    db.session.delete(note)
+def delete_session_note(pid, nid):
+    n = SessionNote.query.get_or_404(nid)
+    db.session.delete(n)
     db.session.commit()
     flash("تم حذف الملاحظة", 'success')
-    return redirect(f'/patient/{patient_id}')
+    return redirect(f'/patient/{pid}')
 
 
-@app.route('/patient/<int:patient_id>/delete', methods=['POST'])
+@app.route('/patient/<int:pid>/delete', methods=['POST'])
 @admin_required
-def delete_patient(patient_id):
-    patient = PatientProfile.query.get_or_404(patient_id)
-    # حذف كل ملاحظاته أولاً
-    SessionNote.query.filter_by(patient_id=patient_id).delete()
-    db.session.delete(patient)
+def delete_patient(pid):
+    SessionNote.query.filter_by(patient_id=pid).delete()
+    PatientProfile.query.filter_by(id=pid).delete()
     db.session.commit()
     flash("تم حذف ملف المريض", 'success')
     return redirect('/patients')
 
 
-# ══════════════════════════════════════════
-#  EMAIL
-# ══════════════════════════════════════════
+# ─────────────────────────────────────────────
+#  CSV EXPORT
+# ─────────────────────────────────────────────
+@app.route('/export/bookings')
+@admin_required
+def export_bookings():
+    output = io.StringIO()
+    w = csv.writer(output)
+    w.writerow(['#', 'الاسم', 'العمر', 'الهاتف', 'الشكوى',
+                'الحالات', 'التاريخ', 'الميعاد', 'الحالة', 'تاريخ الحجز'])
+    for i, b in enumerate(Booking.query.order_by(Booking.date).all(), 1):
+        w.writerow([i, b.name, b.age, b.phone, b.pain,
+                    b.conditions, b.date, b.appointment,
+                    b.status, b.created_at.strftime('%Y-%m-%d %H:%M') if b.created_at else ''])
+    output.seek(0)
+    bom = '\ufeff' + output.getvalue()
+    return send_file(
+        io.BytesIO(bom.encode('utf-8')),
+        mimetype='text/csv; charset=utf-8',
+        as_attachment=True,
+        download_name=f"bookings_{egypt_today()}.csv")
 
-def send_email_safe(to, subject, body):
-    try:
-        sender   = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
-        password = os.getenv("EMAIL_PASSWORD")
-        if not password:
-            return
-        msg = MIMEText(body, 'plain', 'utf-8')
-        msg['Subject'] = subject
-        msg['From']    = sender
-        msg['To']      = to
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10) as server:
-            server.login(sender, password)
-            server.sendmail(sender, to, msg.as_string())
-    except Exception as e:
-        app.logger.error(f"Email error (background): {e}")
+
+@app.route('/export/patients')
+@admin_required
+def export_patients():
+    output = io.StringIO()
+    w = csv.writer(output)
+    w.writerow(['#', 'الاسم', 'الهاتف', 'العمر', 'الحالات المزمنة',
+                'أول زيارة', 'آخر زيارة', 'إجمالي الزيارات', 'ملاحظات الدكتور'])
+    for i, p in enumerate(PatientProfile.query.order_by(PatientProfile.name).all(), 1):
+        w.writerow([i, p.name, p.phone, p.age, p.conditions,
+                    p.first_visit, p.last_visit, p.total_visits,
+                    (p.doctor_notes or '').replace('\n', ' ')])
+    output.seek(0)
+    bom = '\ufeff' + output.getvalue()
+    return send_file(
+        io.BytesIO(bom.encode('utf-8')),
+        mimetype='text/csv; charset=utf-8',
+        as_attachment=True,
+        download_name=f"patients_{egypt_today()}.csv")
+
 
 if __name__ == '__main__':
     app.run(debug=False)
