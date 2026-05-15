@@ -232,20 +232,36 @@ def send_whatsapp(phone, message):
         app.logger.error(f"WhatsApp error: {e}")
 
 
+def get_doctor_phone():
+    """رقم الدكتور من الـ environment"""
+    return os.getenv("DOCTOR_PHONE", "")
+
+
 def notify_booking(name, phone, date, appointment):
-    """إشعار واتساب عند الحجز"""
-    msg = (f"✅ تم تأكيد حجزك في مركز الهادي للعلاج الطبيعي\n"
-           f"👤 الاسم: {name}\n📅 التاريخ: {date}\n🕐 الميعاد: {appointment}\n\n"
-           f"💚 نتمنى لك الشفاء العاجل!")
-    threading.Thread(target=send_whatsapp, args=(phone, msg), daemon=True).start()
+    """إشعار واتساب للدكتور عند حجز جديد"""
+    doctor = get_doctor_phone()
+    if not doctor:
+        app.logger.info("DOCTOR_PHONE not set, skipping WhatsApp")
+        return
+    msg = (f"🏥 حجز جديد - مركز الهادي\n"
+           f"👤 الاسم: {name}\n"
+           f"📱 الهاتف: {phone}\n"
+           f"📅 التاريخ: {date}\n"
+           f"🕐 الميعاد: {appointment}")
+    threading.Thread(target=send_whatsapp, args=(doctor, msg), daemon=True).start()
 
 
 def notify_reminder(name, phone, date, appointment):
-    """تذكير قبل الموعد بـ 24 ساعة"""
-    msg = (f"⏰ تذكير بموعدك غداً في مركز الهادي للعلاج الطبيعي\n"
-           f"👤 {name}\n📅 {date}\n🕐 {appointment}\n\n"
-           f"يرجى الحضور قبل الموعد بـ 10 دقائق 🙏")
-    threading.Thread(target=send_whatsapp, args=(phone, msg), daemon=True).start()
+    """تذكير للدكتور قبل الموعد بـ 24 ساعة"""
+    doctor = get_doctor_phone()
+    if not doctor:
+        return
+    msg = (f"⏰ تذكير بموعد غد - مركز الهادي\n"
+           f"👤 {name}\n"
+           f"📱 {phone}\n"
+           f"📅 {date}\n"
+           f"🕐 {appointment}")
+    threading.Thread(target=send_whatsapp, args=(doctor, msg), daemon=True).start()
 
 
 # ─────────────────────────────────────────────
@@ -275,26 +291,7 @@ def reminder_worker():
 threading.Thread(target=reminder_worker, daemon=True).start()
 
 
-# ─────────────────────────────────────────────
-#  EMAIL
-# ─────────────────────────────────────────────
-def send_email_safe(to, subject, body):
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        sender   = os.getenv("EMAIL_SENDER", "elhadyclinic1@gmail.com")
-        password = os.getenv("EMAIL_PASSWORD")
-        if not password:
-            return
-        msg             = MIMEText(body, 'plain', 'utf-8')
-        msg['Subject']  = subject
-        msg['From']     = sender
-        msg['To']       = to
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10) as s:
-            s.login(sender, password)
-            s.sendmail(sender, to, msg.as_string())
-    except Exception as e:
-        app.logger.error(f"Email error: {e}")
+
 
 
 # ─────────────────────────────────────────────
@@ -379,13 +376,7 @@ def submit():
 
     # إشعارات
     notify_booking(name, phone, date_str, appointment)
-    admin_email_body = (f"حجز جديد\nالاسم: {name}\nالعمر: {age}\n"
-                        f"الهاتف: {phone}\nالتاريخ: {date_str}\n"
-                        f"الميعاد: {appointment}\nالوصف: {pain}\n"
-                        f"الحالات: {', '.join(conditions) or 'لا يوجد'}")
-    threading.Thread(target=send_email_safe,
-                     args=("tetoelsalahy@gmail.com", "حجز جديد - عيادة الهادي", admin_email_body),
-                     daemon=True).start()
+
 
     return redirect(f'/confirmation?token={token}')
 
