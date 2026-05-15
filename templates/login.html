@@ -1,22 +1,48 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>تسجيل الدخول</title>
-    <link rel="stylesheet" href="/static/style11.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل دخول الإدارة – مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="login-container container">
-        <h2>تسجيل الدخول كأدمن</h2>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-icon">🔐</div>
+        <div class="login-title">لوحة تحكم الإدارة</div>
+        <div style="color:rgba(255,255,255,.7);font-size:.85rem;margin-top:.3rem;">مركز الهادي للعلاج الطبيعي</div>
+      </div>
+
+      <div class="login-body">
         {% if error %}
-            <p class="error">{{ error }}</p>
+          <div class="error-msg">⚠️ {{ error }}</div>
         {% endif %}
+
         <form method="POST">
-            {{ form.hidden_tag() }}
-            <label>اسم المستخدم</label>{{ form.username }}
-            <label>كلمة السر</label>{{ form.password }}
-            {{ form.submit }}
+          {{ form.hidden_tag() }}
+
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">👤</span>
+              اسم المستخدم
+            </label>
+            {{ form.username(class="field-input", placeholder="اسم المستخدم") }}
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">🔑</span>
+              كلمة السر
+            </label>
+            {{ form.password(class="field-input", placeholder="••••••••") }}
+          </div>
+
+          {{ form.submit(class="btn-submit") }}
         </form>
+      </div>
     </div>
+  </div>
 </body>
 </html>
