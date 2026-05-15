@@ -1,0 +1,11 @@
+# ✅ تصليح مهم: الملف لازم اسمه .env (بالنقطة) مش env
+.env
+
+__pycache__/
+*.pyc
+*.pyo
+
+instance/
+*.db
+
+config.py
