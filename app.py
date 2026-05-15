@@ -217,36 +217,35 @@ class DoctorNotesForm(FlaskForm):
 # ─────────────────────────────────────────────
 #  WHATSAPP  (Twilio / CallMeBot)
 # ─────────────────────────────────────────────
-import urllib.request, urllib.parse
-import threading
-
-def send_whatsapp(message):
+def send_whatsapp(phone, message):
     """إرسال واتساب عبر CallMeBot (مجاني) أو Twilio"""
     try:
-        # اللينك كامل مع الرقم والـ API Key
-        url = ("https://api.callmebot.com/whatsapp.php"
-               "?phone=201061598622"
-               f"&text={urllib.parse.quote(message)}"
-               "&apikey=6095069")
+        api_key = os.getenv("CALLMEBOT_API_KEY")
+        if not api_key:
+            app.logger.info("WhatsApp: CALLMEBOT_API_KEY not set, skipping")
+            return
+        import urllib.request, urllib.parse
+        url = (f"https://api.callmebot.com/whatsapp.php"
+               f"?phone={phone}&text={urllib.parse.quote(message)}&apikey={api_key}")
         urllib.request.urlopen(url, timeout=10)
     except Exception as e:
         app.logger.error(f"WhatsApp error: {e}")
 
 
-def notify_booking(name, date, appointment):
+def notify_booking(name, phone, date, appointment):
     """إشعار واتساب عند الحجز"""
     msg = (f"✅ تم تأكيد حجزك في مركز الهادي للعلاج الطبيعي\n"
            f"👤 الاسم: {name}\n📅 التاريخ: {date}\n🕐 الميعاد: {appointment}\n\n"
            f"💚 نتمنى لك الشفاء العاجل!")
-    threading.Thread(target=send_whatsapp, args=(msg,), daemon=True).start()
+    threading.Thread(target=send_whatsapp, args=(phone, msg), daemon=True).start()
 
 
-def notify_reminder(name, date, appointment):
+def notify_reminder(name, phone, date, appointment):
     """تذكير قبل الموعد بـ 24 ساعة"""
     msg = (f"⏰ تذكير بموعدك غداً في مركز الهادي للعلاج الطبيعي\n"
            f"👤 {name}\n📅 {date}\n🕐 {appointment}\n\n"
            f"يرجى الحضور قبل الموعد بـ 10 دقائق 🙏")
-    threading.Thread(target=send_whatsapp, args=(msg,), daemon=True).start()
+    threading.Thread(target=send_whatsapp, args=(phone, msg), daemon=True).start()
 
 
 # ─────────────────────────────────────────────
