@@ -517,6 +517,5 @@ def send_email_safe(to, subject, body):
     except Exception as e:
         app.logger.error(f"Email error (background): {e}")
 
-
 if __name__ == '__main__':
     app.run(debug=False)
