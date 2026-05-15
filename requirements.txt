@@ -6,3 +6,4 @@ Flask-WTF
 flask_sqlalchemy
 Werkzeug
 Flask-Limiter
+resend
