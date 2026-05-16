@@ -1,57 +1,244 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تقييم الخدمة — مركز الهادي</title>
   <link rel="stylesheet" href="/static/style.css">
   <style>
-    .stars-picker{display:flex;gap:8px;justify-content:center;margin:1.5rem 0;}
-    .star-btn{font-size:2.5rem;cursor:pointer;opacity:.3;transition:all .2s;background:none;border:none;padding:0;}
-    .star-btn.active{opacity:1;transform:scale(1.1);}
-    .star-btn:hover{opacity:.8;}
-    .rating-label{text-align:center;font-size:.9rem;color:var(--text-secondary);height:1.2rem;margin-bottom:.5rem;}
+    .rate-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .rate-card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      width: 100%;
+      max-width: 480px;
+      border: 1.5px solid rgba(14,165,160,.12);
+      animation: slideUp .5s cubic-bezier(.16,1,.3,1) both;
+    }
+
+    .rate-header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 50%, var(--secondary) 100%);
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .rate-header-icon { font-size: 2.5rem; margin-bottom: .5rem; }
+
+    .rate-header h1 {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: white;
+      margin-bottom: .3rem;
+    }
+
+    .rate-header p { color: rgba(255,255,255,.8); font-size: .88rem; }
+
+    .rate-body { padding: 1.75rem; }
+
+    /* Stars */
+    .stars-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 1.25rem 0 .5rem;
+    }
+
+    .star-btn {
+      font-size: 2.2rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      opacity: .25;
+      transition: all .2s;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .star-btn.lit { opacity: 1; transform: scale(1.15); }
+    .star-btn:hover { opacity: .75; }
+
+    .stars-label {
+      text-align: center;
+      font-size: .88rem;
+      color: var(--primary);
+      font-weight: 600;
+      height: 1.2rem;
+      margin-bottom: 1rem;
+      transition: all .2s;
+    }
+
+    /* Result states */
+    .result-icon {
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem;
+      margin: 0 auto 1.25rem;
+    }
+
+    .result-icon.success {
+      background: linear-gradient(135deg, var(--primary-light), var(--secondary-light));
+      animation: pulse-success 2s ease infinite;
+    }
+
+    .result-icon.info {
+      background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    }
+
+    .result-title {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 900;
+      text-align: center;
+      margin-bottom: .75rem;
+    }
+
+    .result-text {
+      text-align: center;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+
+    /* booking summary */
+    .booking-summary {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: .9rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: .9rem;
+    }
+
+    .booking-summary div { margin-bottom: .3rem; color: var(--text-primary); }
+    .booking-summary span { color: var(--text-secondary); }
+
+    .error-box {
+      background: var(--danger-light);
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius-md);
+      padding: .75rem 1rem;
+      color: var(--danger);
+      font-size: .9rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    @keyframes pulse-success {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(14,165,160,.3); }
+      50% { box-shadow: 0 0 0 14px rgba(14,165,160,0); }
+    }
   </style>
 </head>
 <body>
-  <div class="confirmation-page">
-    <div class="confirmation-card">
+<div class="rate-page">
+  <div class="rate-card">
+    <div class="rate-header">
+      <div class="rate-header-icon">⭐</div>
+      <h1>قيّم تجربتك معنا</h1>
+      <p>مركز الهادي للعلاج الطبيعي والتأهيل</p>
+    </div>
 
-      {% if already_rated %}
-        <div class="confirmation-icon">⭐</div>
-        <h2 class="confirmation-title">شكراً على تقييمك!</h2>
-        <p class="confirmation-text">لقد قيّمت هذه الجلسة بالفعل. شكراً لثقتك في مركز الهادي 💚</p>
-        <a href="/" class="btn-back">🏠 الرئيسية</a>
+    <div class="rate-body">
 
-      {% elif done %}
-        <div class="confirmation-icon">🌟</div>
-        <h2 class="confirmation-title">تم التقييم بنجاح!</h2>
-        <p class="confirmation-text">شكراً لك على تقييمك. رأيك يساعدنا على التحسن المستمر 💚</p>
+      {% if done %}
+        <!-- ✅ تم التقييم -->
+        <div class="result-icon success">🌟</div>
+        <div class="result-title" style="color:var(--primary);">شكراً على تقييمك!</div>
+        {% if booking %}
+          <div class="booking-summary">
+            <div>👤 <span>الاسم:</span> {{ booking.name }}</div>
+            <div>📅 <span>التاريخ:</span> {{ booking.date }}</div>
+            <div>🕐 <span>الميعاد:</span> {{ booking.appointment }}</div>
+          </div>
+        {% endif %}
+        <p class="result-text">رأيك يساعدنا على تقديم خدمة أفضل دائماً 💚</p>
+        <a href="/" class="btn-back">🏠 حجز موعد جديد</a>
+
+      {% elif already_rated %}
+        <!-- ⭐ قيّم قبل كده -->
+        <div class="result-icon info">😊</div>
+        <div class="result-title" style="color:var(--accent);">قيّمت من قبل!</div>
+        {% if booking %}
+          <div class="booking-summary">
+            <div>👤 <span>الاسم:</span> {{ booking.name }}</div>
+            <div>📅 <span>التاريخ:</span> {{ booking.date }}</div>
+            {% if booking.rating %}
+              <div>⭐ <span>تقييمك:</span>
+                {% for i in range(booking.rating.stars) %}⭐{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+        <p class="result-text">شكراً لك، لقد قيّمت هذه الجلسة بالفعل 🙏</p>
         <a href="/" class="btn-back">🏠 الرئيسية</a>
 
       {% else %}
-        <div class="confirmation-icon">⭐</div>
-        <h2 class="confirmation-title">قيّم تجربتك</h2>
-        <p class="confirmation-text">
-          {{ booking.name }}، كيف كانت جلستك بتاريخ {{ booking.date }}؟
-        </p>
+        <!-- 📝 فورم التقييم -->
+        {% if error %}
+          <div class="error-box">⚠️ {{ error }}</div>
+        {% endif %}
 
-        <form method="POST">
+        <form method="POST" onsubmit="return validateForm()">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="stars" id="stars-val" value="0">
 
-          <div class="rating-label" id="rating-label">اختر تقييمك</div>
-          <div class="stars-picker">
-            {% for i in range(1,6) %}
-              <button type="button" class="star-btn" data-val="{{ i }}" onclick="setStars({{ i }})">⭐</button>
-            {% endfor %}
+          <!-- رقم الهاتف -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">📱</span>
+              رقم هاتفك
+            </label>
+            <input
+              class="field-input"
+              type="tel"
+              name="phone"
+              placeholder="01xxxxxxxxx"
+              pattern="\d{10,}"
+              required
+              value="{{ request.form.phone or '' }}">
           </div>
 
-          <div class="field-group" style="margin-bottom:1rem;">
-            <label class="field-label" style="text-align:right;display:block;margin-bottom:.4rem;">💬 تعليق إضافي (اختياري)</label>
-            <textarea name="comment" class="field-input" style="width:100%;min-height:90px;resize:vertical;border:1.5px solid var(--border);border-radius:var(--radius-md);padding:.75rem;font-family:var(--font-body);" placeholder="اكتب تعليقك هنا..."></textarea>
+          <!-- النجوم -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">⭐</span>
+              تقييمك للخدمة
+            </label>
+            <div class="stars-row">
+              {% for i in range(1, 6) %}
+                <button type="button" class="star-btn" data-val="{{ i }}" onclick="setStars({{ i }})">⭐</button>
+              {% endfor %}
+            </div>
+            <div class="stars-label" id="stars-label">اضغط على النجوم للتقييم</div>
           </div>
 
-          <button type="submit" class="btn-submit" onclick="return validateRating()">
+          <!-- تعليق -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">💬</span>
+              تعليق إضافي (اختياري)
+            </label>
+            <textarea
+              name="comment"
+              class="field-input"
+              style="min-height:90px;resize:vertical;"
+              placeholder="شاركنا رأيك في الخدمة...">{{ request.form.comment or '' }}</textarea>
+          </div>
+
+          <button type="submit" class="btn-submit">
             ✅ إرسال التقييم
           </button>
         </form>
@@ -59,23 +246,36 @@
 
     </div>
   </div>
+</div>
 
-  <script>
-    const labels = {1:'ضعيف 😞', 2:'مقبول 😐', 3:'جيد 🙂', 4:'جيد جداً 😊', 5:'ممتاز 🤩'};
-    function setStars(val) {
-      document.getElementById('stars-val').value = val;
-      document.getElementById('rating-label').textContent = labels[val] || '';
-      document.querySelectorAll('.star-btn').forEach((b,i) => {
-        b.classList.toggle('active', i < val);
-      });
+<script>
+  const labels = {
+    1: 'ضعيف 😞',
+    2: 'مقبول 😐',
+    3: 'جيد 🙂',
+    4: 'جيد جداً 😊',
+    5: 'ممتاز! 🤩'
+  };
+
+  function setStars(val) {
+    document.getElementById('stars-val').value = val;
+    document.getElementById('stars-label').textContent = labels[val] || '';
+    document.querySelectorAll('.star-btn').forEach((b, i) => {
+      b.classList.toggle('lit', i < val);
+    });
+  }
+
+  function validateForm() {
+    if (document.getElementById('stars-val').value === '0') {
+      alert('يرجى اختيار تقييم من 1 إلى 5 نجوم أولاً');
+      return false;
     }
-    function validateRating() {
-      if (document.getElementById('stars-val').value == '0') {
-        alert('يرجى اختيار تقييم أولاً');
-        return false;
-      }
-      return true;
-    }
-  </script>
+    return true;
+  }
+
+  // لو في error — أعد تفعيل النجوم اللي اختارها المريض
+  const prevStars = {{ request.form.get('stars', 0) if request.form else 0 }};
+  if (prevStars > 0) setStars(prevStars);
+</script>
 </body>
 </html>
