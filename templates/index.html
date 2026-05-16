@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مركز الهادي للعلاج الطبيعي</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-messages" style="max-width:680px;margin:1rem auto;padding:0 1rem;">
+      {% for category, message in messages %}
+        <div class="flash-msg {{ category }}">
+          {{ '⚠️' if category == 'error' else '✅' }} {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- ══════════ بانر الطبيب ══════════ -->
+<div id="doctor-banner" class="doctor-banner">
+  <div class="banner-card">
+    <div class="banner-header">
+      <div class="banner-logo">
+        <div class="logo-icon">🏥</div>
+        <div class="logo-text">مركز الهادي للعلاج الطبيعي والتأهيل</div>
+      </div>
+      <div class="doctor-info-row">
+        <img src="/static/doctor-clean.png" alt="د/ حسين عبد الهادي" class="doctor-avatar">
+        <div class="doctor-details">
+          <div class="doctor-name">د/ حسين عبد الهادي الصلاحي</div>
+          <div class="doctor-title">
+            أخصائي تأهيل إصابات الملاعب والعمود الفقري<br>
+            خريج كلية العلاج الطبيعي – جامعة الدلتا للعلوم والتكنولوجيا
+          </div>
+          <div class="doctor-badge">⭐ نائب مدير مستشفى مطروح العام</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="banner-body">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-num">+500</div>
+          <div class="stat-label">مريض تعافى</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">8</div>
+          <div class="stat-label">ساعات يومياً</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">6</div>
+          <div class="stat-label">أيام في الأسبوع</div>
+        </div>
+      </div>
+
+      <button class="btn-book" onclick="goToBooking()">
+        <span class="pulse-dot"></span>
+        احجز موعدك الآن
+        <span>📅</span>
+      </button>
+
+      <a href="/rate" class="btn-rate">
+        ⭐ قيّم تجربتك السابقة
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ نموذج الحجز ══════════ -->
+<div id="booking-form" class="booking-wrapper" style="display:none;">
+  <div class="booking-card">
+    <div class="form-header">
+      <h1>🩺 احجز موعدك</h1>
+      <p>مركز الهادي للعلاج الطبيعي والتأهيل</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+
+    <form action="/submit" method="POST" id="main-form" onsubmit="return validateAndSubmit()">
+      {{ form.hidden_tag() }}
+
+      <div class="form-body">
+
+        <!-- الاسم -->
+        <div class="field-group">
+          <label class="field-label">
+            <span class="label-icon">👤</span>
+            الاسم بالكامل
+          </label>
+          <input
+            class="field-input"
+            type="text"
+            name="name"
+            required
+            minlength="3"
+            pattern="[أ-يa-zA-Z\s]+"
+            title="الاسم يجب أن يحتوي على حروف فقط"
+            placeholder="مثال: محمد أحمد علي"
+            value="{{ request.form.name or '' }}"
+            oninput="updateProgress()">
+        </div>
+
+        <!-- العمر والهاتف جنب بعض -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">🎂</span>
+              العمر
+            </label>
+            <input
+              class="field-input"
+              type="number"
+              name="age"
+              required min="1" max="120"
+              placeholder="25"
+              value="{{ request.form.age or '' }}"
+              oninput="updateProgress()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">📱</span>
+              رقم الهاتف
+            </label>
+            <input
+              class="field-input"
+              type="tel"
+              name="phone"
+              required
+              pattern="\d{10,}"
+              placeholder="01xxxxxxxxx"
+              value="{{ request.form.phone or '' }}"
+              oninput="updateProgress()">
+          </div>
+        </div>
+
+        <!-- الوصف -->
+        <div class="field-group">
+          <label class="field-label">
+            <span class="label-icon">🤕</span>
+            بماذا تشعر؟
+          </label>
+          <input
+            class="field-input"
+            type="text"
+            name="pain"
+            required
+            pattern="[^<>'\&quot;]+"
+            placeholder="مثال: ألم في الظهر، أو تعب في الركبة..."
+            value="{{ request.form.pain or '' }}"
+            oninput="updateProgress()">
+        </div>
+
+        <!-- الحالات الصحية -->
+        <div class="field-group">
+          <label class="field-label">
+            <span class="label-icon">📋</span>
+            هل عندك حالات صحية؟ (اختياري)
+          </label>
+          <div class="conditions-grid">
+            <div class="condition-item">
+              <input type="checkbox" id="cond-diabetes" name="conditions" value="Diabetes">
+              <label class="condition-label" for="cond-diabetes">
+                <span class="condition-icon">🩸</span>
+                السكر
+              </label>
+            </div>
+            <div class="condition-item">
+              <input type="checkbox" id="cond-bp" name="conditions" value="High Blood Pressure">
+              <label class="condition-label" for="cond-bp">
+                <span class="condition-icon">❤️</span>
+                الضغط
+              </label>
+            </div>
+            <div class="condition-item">
+              <input type="checkbox" id="cond-injury" name="conditions" value="Old Injury">
+              <label class="condition-label" for="cond-injury">
+                <span class="condition-icon">🦴</span>
+                إصابة قديمة
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- التاريخ -->
+        <div class="field-group">
+          <label class="field-label">
+            <span class="label-icon">📅</span>
+            اختر تاريخ الحجز
+          </label>
+          <input
+            class="field-input"
+            type="date"
+            id="date-input"
+            name="date"
+            required
+            value="{{ selected_date }}"
+            oninput="onDateChange()">
+          <div id="date-msg" style="font-size:.82rem;margin-top:5px;display:none;"></div>
+        </div>
+
+        <!-- اختيار الوقت -->
+        <div class="field-group" id="time-section">
+          <label class="field-label">
+            <span class="label-icon">🕐</span>
+            اختر الميعاد المناسب
+          </label>
+          <input type="hidden" name="appointment" id="appointment-val" required>
+          <div id="time-slots-container">
+            <div class="time-slots-grid" id="time-slots-grid">
+              {% for time in available_times %}
+                <div class="time-slot" onclick="selectSlot(this, '{{ time }}')">{{ time }}</div>
+              {% else %}
+                <div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:1rem;">
+                  لا توجد مواعيد متاحة
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- زر الإرسال -->
+        <button type="submit" class="btn-submit" id="submit-btn">
+          ✅ تأكيد الحجز
+        </button>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// ─── إعداد الصفحة ───
+document.addEventListener('DOMContentLoaded', () => {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  const dateInput = document.getElementById('date-input');
+  dateInput.setAttribute('min', today);
+  updateProgress();
+});
+
+// ─── الانتقال للنموذج ───
+function goToBooking() {
+  const banner = document.getElementById('doctor-banner');
+  const form   = document.getElementById('booking-form');
+  banner.style.transition = 'opacity .5s ease, transform .5s ease';
+  banner.style.opacity = '0';
+  banner.style.transform = 'translateY(-20px)';
+  setTimeout(() => {
+    banner.style.display = 'none';
+    form.style.display = 'block';
+    setTimeout(() => form.style.animation = 'slideUp .5s cubic-bezier(.16,1,.3,1) both', 10);
+  }, 450);
+}
+
+// ─── تحديث Progress Bar ───
+function updateProgress() {
+  const fields = ['name', 'age', 'phone', 'pain'];
+  const filledCount = fields.filter(f => {
+    const el = document.querySelector(`[name="${f}"]`);
+    return el && el.value.trim().length >= 1;
+  }).length;
+  const hasDate = document.getElementById('date-input').value;
+  const hasTime = document.getElementById('appointment-val').value;
+  const total = filledCount + (hasDate ? 1 : 0) + (hasTime ? 1 : 0);
+  const pct = Math.min(100, Math.round((total / 6) * 100));
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+// ─── اختيار الميعاد ───
+function selectSlot(el, time) {
+  document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('appointment-val').value = time;
+  updateProgress();
+}
+
+// ─── تغيير التاريخ ───
+async function onDateChange() {
+  const dateInput = document.getElementById('date-input');
+  const val = dateInput.value;
+  const msg = document.getElementById('date-msg');
+
+  if (!val) return;
+
+  // تحقق من الجمعة بتوقيت القاهرة
+  const selectedDate = new Date(val + 'T12:00:00');
+  if (selectedDate.getDay() === 5) {
+    msg.textContent = '⛔ العيادة مغلقة يوم الجمعة، اختر يوماً آخر.';
+    msg.style.color = 'var(--danger)';
+    msg.style.display = 'block';
+    dateInput.value = '';
+    document.getElementById('time-slots-grid').innerHTML = '';
+    return;
+  }
+
+  msg.style.display = 'none';
+
+  // جلب المواعيد المتاحة
+  const grid = document.getElementById('time-slots-grid');
+  grid.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted);">⏳ جاري التحميل...</div>';
+
+  try {
+    const res  = await fetch(`/available_slots?date=${val}`);
+    const data = await res.json();
+
+    document.getElementById('appointment-val').value = '';
+    updateProgress();
+
+    if (data.error) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--danger);padding:1rem;">⛔ ${data.error}</div>`;
+      return;
+    }
+
+    if (!data.available_times || data.available_times.length === 0) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:1rem;">لا توجد مواعيد في هذا اليوم</div>';
+      return;
+    }
+
+    grid.innerHTML = data.available_times.map(t =>
+      `<div class="time-slot" onclick="selectSlot(this,'${t}')">${t}</div>`
+    ).join('');
+  } catch (err) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger);padding:1rem;">حدث خطأ، حاول مرة أخرى.</div>';
+  }
+}
+
+// ─── التحقق قبل الإرسال ───
+function validateAndSubmit() {
+  const appointment = document.getElementById('appointment-val').value;
+  if (!appointment) {
+    alert('يرجى اختيار ميعاد أولاً');
+    return false;
+  }
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = '⏳ جاري الإرسال...';
+  btn.disabled = true;
+  return true;
+}
+</script>
+
+</body>
+</html>

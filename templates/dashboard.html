@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم — مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .db-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:1.5rem;}
+    .stat-box{background:var(--surface);border-radius:var(--radius-lg);padding:1.25rem 1.5rem;border:1.5px solid var(--border);box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:1rem;transition:transform .2s;}
+    .stat-box:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
+    .stat-icon{width:52px;height:52px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0;}
+    .stat-icon.teal{background:var(--primary-light);}
+    .stat-icon.purple{background:#ede9fe;}
+    .stat-icon.amber{background:#fffbeb;}
+    .stat-icon.red{background:#fef2f2;}
+    .stat-num{font-family:var(--font-display);font-size:1.9rem;font-weight:900;line-height:1;color:var(--text-primary);}
+    .stat-lbl{font-size:.82rem;color:var(--text-secondary);margin-top:3px;}
+
+    .section-card{background:var(--surface);border-radius:var(--radius-lg);border:1.5px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:1.25rem;}
+    .sc-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);font-family:var(--font-display);font-weight:700;font-size:.95rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;}
+    .sc-body{padding:1.25rem;}
+
+    /* Bar Chart */
+    .bar-chart{display:flex;align-items:flex-end;gap:8px;height:120px;padding-bottom:.5rem;}
+    .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;}
+    .bar{width:100%;background:linear-gradient(180deg,var(--primary),var(--primary-dark));border-radius:6px 6px 0 0;min-height:4px;transition:height .5s cubic-bezier(.16,1,.3,1);}
+    .bar-lbl{font-size:.68rem;color:var(--text-muted);white-space:nowrap;}
+    .bar-val{font-size:.75rem;font-weight:600;color:var(--primary);}
+
+    /* Conditions bubbles */
+    .bubbles{display:flex;flex-wrap:wrap;gap:8px;}
+    .bubble{background:linear-gradient(135deg,var(--primary-light),var(--secondary-light));border:1px solid rgba(14,165,160,.2);border-radius:99px;padding:5px 14px;font-size:.82rem;font-weight:600;color:var(--primary-dark);}
+
+    /* Recent table */
+    .mini-table{width:100%;border-collapse:collapse;font-size:.85rem;}
+    .mini-table th{text-align:right;padding:.6rem .75rem;color:var(--text-secondary);font-weight:600;font-size:.78rem;border-bottom:1px solid var(--border);}
+    .mini-table td{padding:.65rem .75rem;border-bottom:1px solid var(--border);color:var(--text-primary);}
+    .mini-table tr:last-child td{border-bottom:none;}
+    .mini-table tr:hover td{background:var(--primary-light);}
+
+    /* Rating stars */
+    .stars-display{display:flex;gap:3px;}
+    .star{color:#f59e0b;font-size:1.1rem;}
+    .star.empty{color:var(--border);}
+
+    .nav-links{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.5rem;}
+    .nav-link{display:flex;align-items:center;gap:7px;padding:.55rem 1.1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:.88rem;color:var(--text-primary);text-decoration:none;transition:all .2s;font-weight:500;}
+    .nav-link:hover,.nav-link.active{background:var(--primary);color:white;border-color:var(--primary);}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    @media(max-width:640px){.two-col{grid-template-columns:1fr;}.db-grid{grid-template-columns:1fr 1fr;}}
+  </style>
+</head>
+<body>
+<div class="admin-page">
+
+  <!-- هيدر -->
+  <div class="admin-header">
+    <div>
+      <div class="admin-title">📊 لوحة التحكم</div>
+      <div class="admin-subtitle">مركز الهادي للعلاج الطبيعي</div>
+    </div>
+    <a href="/logout" class="btn-logout">🚪 خروج</a>
+  </div>
+
+  <!-- روابط التنقل -->
+  <div class="nav-links">
+    <a href="/dashboard" class="nav-link active">📊 الرئيسية</a>
+    <a href="/bookings" class="nav-link">📋 الحجوزات</a>
+    <a href="/patients" class="nav-link">👥 المرضى</a>
+    <a href="/ratings" class="nav-link">⭐ التقييمات</a>
+    <a href="/settings"     class="nav-link">⚙️ الإعدادات</a>
+    <a href="/upload_photo" class="nav-link">📷 صورة الدكتور</a>
+    <a href="/change_password" class="nav-link">🔐 كلمة السر</a>
+    <a href="/export/bookings" class="nav-link">📥 تصدير الحجوزات CSV</a>
+    <a href="/export/patients" class="nav-link">📥 تصدير المرضى CSV</a>
+  </div>
+
+  <!-- الإحصائيات الرئيسية -->
+  <div class="db-grid">
+    <div class="stat-box">
+      <div class="stat-icon teal">📅</div>
+      <div>
+        <div class="stat-num">{{ total }}</div>
+        <div class="stat-lbl">إجمالي الحجوزات</div>
+      </div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon teal">🌟</div>
+      <div>
+        <div class="stat-num">{{ today_count }}</div>
+        <div class="stat-lbl">حجوزات اليوم</div>
+      </div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon purple">👥</div>
+      <div>
+        <div class="stat-num">{{ patients_n }}</div>
+        <div class="stat-lbl">إجمالي المرضى</div>
+      </div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon amber">⭐</div>
+      <div>
+        <div class="stat-num">{{ avg_rating }}</div>
+        <div class="stat-lbl">متوسط التقييم ({{ ratings_count }})</div>
+      </div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon red">❌</div>
+      <div>
+        <div class="stat-num">{{ cancelled }}</div>
+        <div class="stat-lbl">حجوزات ملغية</div>
+      </div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon teal">🟢</div>
+      <div>
+        <div class="stat-num">{{ attended }}</div>
+        <div class="stat-lbl">مرضى حضروا</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Bar Chart آخر 7 أيام -->
+    <div class="section-card">
+      <div class="sc-header">📈 الحجوزات — آخر 7 أيام</div>
+      <div class="sc-body">
+        {% set max_count = days_data | map(attribute='count') | max %}
+        <div class="bar-chart">
+          {% for d in days_data %}
+            {% set pct = (d.count / max_count * 100) if max_count > 0 else 0 %}
+            <div class="bar-wrap">
+              <div class="bar-val">{{ d.count }}</div>
+              <div class="bar" style="height:{{ [pct, 5] | max }}px; max-height:80px;"></div>
+              <div class="bar-lbl">{{ d.date[5:] }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- توزيع الحالات -->
+    <div class="section-card">
+      <div class="sc-header">🩺 الحالات الصحية الأكثر شيوعاً</div>
+      <div class="sc-body">
+        {% if cond_count %}
+          <div class="bubbles">
+            {% for cond, cnt in cond_count.items() %}
+              <div class="bubble">{{ cond }} <strong>({{ cnt }})</strong></div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="color:var(--text-muted);text-align:center;padding:2rem;">لا توجد بيانات</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- أحدث الحجوزات -->
+  <div class="section-card">
+    <div class="sc-header">🕐 أحدث الحجوزات</div>
+    <div style="overflow-x:auto;">
+      {% if recent %}
+        <table class="mini-table">
+          <thead>
+            <tr><th>الاسم</th><th>الهاتف</th><th>التاريخ</th><th>الميعاد</th><th>الشكوى</th></tr>
+          </thead>
+          <tbody>
+            {% for b in recent %}
+              <tr>
+                <td><a href="/patients" style="color:var(--primary);font-weight:600;text-decoration:none;">{{ b.name }}</a></td>
+                <td style="direction:ltr;text-align:right;">{{ b.phone }}</td>
+                <td>{{ b.date }}</td>
+                <td><span class="appointment-badge">🕐 {{ b.appointment }}</span></td>
+                <td style="color:var(--text-secondary);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ b.pain }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">لا توجد حجوزات</div></div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

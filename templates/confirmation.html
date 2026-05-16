@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تم الحجز — مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="confirmation-page">
+    <div class="confirmation-card">
+      <div class="confirmation-icon">✅</div>
+      <h2 class="confirmation-title">تم الحجز بنجاح!</h2>
+      {% if booking %}
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:1rem;margin-bottom:1.5rem;text-align:right;">
+          <div style="margin-bottom:.5rem;"><strong>👤</strong> {{ booking.name }}</div>
+          <div style="margin-bottom:.5rem;"><strong>📅</strong> {{ booking.date }}</div>
+          <div><strong>🕐</strong> {{ booking.appointment }}</div>
+        </div>
+      {% endif %}
+      <p class="confirmation-text">
+        شكراً لثقتك في <strong>مركز الهادي للعلاج الطبيعي</strong>.<br>
+        سيصلك إشعار واتساب بتأكيد الحجز. 💚
+      </p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a href="/" class="btn-back">🏠 العودة للرئيسية</a>
+        {% if token %}
+          <a href="/cancel/{{ token }}"
+             style="display:flex;align-items:center;justify-content:center;gap:8px;padding:.9rem 2rem;background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;border-radius:var(--radius-lg);text-decoration:none;font-weight:600;font-family:var(--font-display);">
+            ❌ إلغاء الحجز
+          </a>
+        {% endif %}
+      </div>
+      <div style="margin-top:1.5rem;padding:1rem;background:var(--primary-light);border-radius:var(--radius-md);font-size:.88rem;color:var(--primary-dark);">
+        💡 يمكنك تقييم خدمتنا بعد الجلسة عبر الرابط الذي سيصلك على واتساب
+      </div>
+    </div>
+  </div>
+</body>
+</html>

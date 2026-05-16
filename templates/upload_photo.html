@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>رفع صورة الدكتور — مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .nav-links{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.5rem;}
+    .nav-link{display:flex;align-items:center;gap:7px;padding:.55rem 1.1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:.88rem;color:var(--text-primary);text-decoration:none;transition:all .2s;font-weight:500;}
+    .nav-link:hover,.nav-link.active{background:var(--primary);color:white;border-color:var(--primary);}
+
+    .upload-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--shadow-md);overflow:hidden;max-width:560px;margin:0 auto;}
+    .upload-header{background:linear-gradient(135deg,var(--primary),var(--secondary));padding:2rem;text-align:center;color:white;}
+    .upload-header h2{font-family:var(--font-display);font-size:1.3rem;font-weight:900;margin-bottom:.3rem;}
+    .upload-header p{opacity:.85;font-size:.88rem;}
+    .upload-body{padding:2rem;}
+
+    /* الصورة الحالية */
+    .current-photo-wrap{text-align:center;margin-bottom:1.75rem;}
+    .current-photo{width:140px;height:140px;border-radius:50%;object-fit:cover;border:4px solid var(--primary);box-shadow:var(--shadow-md);margin-bottom:.75rem;}
+    .no-photo{width:140px;height:140px;border-radius:50%;background:linear-gradient(135deg,var(--primary-light),var(--secondary-light));border:3px dashed var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto .75rem;color:var(--primary);font-size:.85rem;gap:8px;}
+    .no-photo-icon{font-size:2.5rem;}
+    .current-label{font-size:.82rem;color:var(--text-secondary);}
+
+    /* منطقة الرفع */
+    .drop-zone{border:2.5px dashed var(--border-strong);border-radius:var(--radius-lg);padding:2.5rem 1.5rem;text-align:center;cursor:pointer;transition:all .25s;background:var(--surface-2);position:relative;margin-bottom:1.25rem;}
+    .drop-zone:hover,.drop-zone.drag-over{border-color:var(--primary);background:var(--primary-light);}
+    .drop-zone input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    .drop-icon{font-size:2.5rem;margin-bottom:.75rem;display:block;}
+    .drop-title{font-family:var(--font-display);font-weight:700;color:var(--text-primary);margin-bottom:.3rem;}
+    .drop-sub{font-size:.82rem;color:var(--text-secondary);}
+
+    /* معاينة قبل الرفع */
+    .preview-wrap{display:none;text-align:center;margin-bottom:1.25rem;}
+    .preview-wrap.show{display:block;}
+    .preview-img{width:140px;height:140px;border-radius:50%;object-fit:cover;border:4px solid var(--secondary);box-shadow:var(--shadow-md);margin-bottom:.6rem;animation:bounceIn .4s ease;}
+    .preview-name{font-size:.82rem;color:var(--text-secondary);}
+    .preview-change{font-size:.8rem;color:var(--primary);cursor:pointer;text-decoration:underline;}
+
+    .tips{background:var(--primary-light);border-radius:var(--radius-md);padding:.9rem 1rem;font-size:.82rem;color:var(--primary-dark);line-height:1.6;margin-bottom:1.25rem;}
+    .tips li{margin-bottom:.2rem;}
+
+    @keyframes bounceIn{from{transform:scale(.8);opacity:0}60%{transform:scale(1.05)}to{transform:scale(1);opacity:1}}
+  </style>
+</head>
+<body>
+<div class="admin-page">
+
+  <div class="admin-header">
+    <div>
+      <div class="admin-title">📷 صورة الدكتور</div>
+      <div class="admin-subtitle">رفع وتحديث صورة الدكتور على الموقع</div>
+    </div>
+    <a href="/logout" class="btn-logout">🚪 خروج</a>
+  </div>
+
+  <div class="nav-links">
+    <a href="/dashboard"    class="nav-link">📊 الرئيسية</a>
+    <a href="/bookings"     class="nav-link">📋 الحجوزات</a>
+    <a href="/patients"     class="nav-link">👥 المرضى</a>
+    <a href="/ratings"      class="nav-link">⭐ التقييمات</a>
+    <a href="/upload_photo" class="nav-link active">📷 صورة الدكتور</a>
+    <a href="/change_password" class="nav-link">🔐 كلمة السر</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash-msg {{ cat }}" style="margin-bottom:1rem;">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="upload-card">
+    <div class="upload-header">
+      <h2>📷 رفع صورة الدكتور</h2>
+      <p>الصورة ستظهر فوراً في الصفحة الرئيسية للموقع</p>
+    </div>
+
+    <div class="upload-body">
+
+      <!-- الصورة الحالية -->
+      <div class="current-photo-wrap">
+        {% if current %}
+          <img src="/static/{{ current }}?v={{ range(1000,9999)|random }}"
+               alt="صورة الدكتور الحالية"
+               class="current-photo"
+               id="current-img">
+          <div class="current-label">✅ الصورة الحالية على الموقع</div>
+        {% else %}
+          <div class="no-photo">
+            <span class="no-photo-icon">👤</span>
+            <span>لا توجد صورة</span>
+          </div>
+          <div class="current-label">لم يتم رفع صورة بعد</div>
+        {% endif %}
+      </div>
+
+      <!-- فورم الرفع -->
+      <form method="POST" enctype="multipart/form-data" id="upload-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- منطقة السحب والإفلات -->
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" name="photo" id="photo-input"
+                 accept=".jpg,.jpeg,.png,.webp"
+                 onchange="previewPhoto(this)">
+          <span class="drop-icon">📁</span>
+          <div class="drop-title">اسحب الصورة هنا أو اضغط للاختيار</div>
+          <div class="drop-sub">JPG, PNG, WEBP — حجم أقصى 5MB</div>
+        </div>
+
+        <!-- معاينة -->
+        <div class="preview-wrap" id="preview-wrap">
+          <img src="" alt="معاينة" class="preview-img" id="preview-img">
+          <div class="preview-name" id="preview-name"></div>
+          <div class="preview-change" onclick="resetPhoto()">اختر صورة مختلفة</div>
+        </div>
+
+        <!-- نصائح -->
+        <ul class="tips">
+          <li>الصورة المثالية: مربعة 400×400 بكسل على الأقل</li>
+          <li>الخلفية البيضاء أو الفاتحة تبدو أجمل في الموقع</li>
+          <li>الصورة تُحفظ باسم ثابت — أي رفع جديد يستبدل القديمة</li>
+        </ul>
+
+        <button type="submit" class="btn-submit" id="submit-btn" disabled>
+          📤 رفع الصورة
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const dropZone  = document.getElementById('drop-zone');
+  const input     = document.getElementById('photo-input');
+  const previewW  = document.getElementById('preview-wrap');
+  const previewI  = document.getElementById('preview-img');
+  const previewN  = document.getElementById('preview-name');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function previewPhoto(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('حجم الصورة أكبر من 5MB');
+      resetPhoto();
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewI.src      = e.target.result;
+      previewN.textContent = file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+      dropZone.style.display  = 'none';
+      previewW.classList.add('show');
+      submitBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function resetPhoto() {
+    input.value          = '';
+    previewW.classList.remove('show');
+    dropZone.style.display = '';
+    submitBtn.disabled   = true;
+  }
+
+  // Drag & Drop
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    input.files = e.dataTransfer.files;
+    previewPhoto(input);
+  });
+
+  // تأكيد قبل الإرسال
+  document.getElementById('upload-form').addEventListener('submit', () => {
+    submitBtn.textContent = '⏳ جاري الرفع...';
+    submitBtn.disabled = true;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الحجوزات — مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .nav-links{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.5rem;}
+    .nav-link{display:flex;align-items:center;gap:7px;padding:.55rem 1.1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:.88rem;color:var(--text-primary);text-decoration:none;transition:all .2s;font-weight:500;}
+    .nav-link:hover,.nav-link.active{background:var(--primary);color:white;border-color:var(--primary);}
+    .toggle-btn{padding:.5rem 1.1rem;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:.85rem;cursor:pointer;background:var(--surface);color:var(--text-primary);text-decoration:none;transition:all .2s;font-weight:500;}
+    .toggle-btn.active{background:var(--primary);color:white;border-color:var(--primary);}
+
+    /* فلتر متقدم */
+    .filter-panel{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1.2rem;box-shadow:var(--shadow-sm);}
+    .filter-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:.9rem;}
+    .filter-search{flex:1;min-width:180px;padding:.65rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:.9rem;outline:none;background:var(--surface-2);}
+    .filter-search:focus{border-color:var(--primary);}
+    .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:.9rem;}
+    .filter-group{display:flex;flex-direction:column;gap:.35rem;}
+    .filter-group label{font-size:.75rem;font-weight:600;color:var(--text-secondary);}
+    .filter-select,.filter-date{width:100%;padding:.55rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:.85rem;background:var(--surface-2);outline:none;color:var(--text-primary);}
+    .filter-select:focus,.filter-date:focus{border-color:var(--primary);}
+    .filter-actions{display:flex;gap:8px;}
+    .btn-filter{padding:.6rem 1.3rem;background:var(--primary);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:.88rem;cursor:pointer;font-weight:600;transition:background .2s;}
+    .btn-filter:hover{background:var(--primary-dark);}
+    .btn-reset{padding:.6rem 1.1rem;background:var(--surface-2);color:var(--text-secondary);border:1.5px solid var(--border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:.88rem;cursor:pointer;text-decoration:none;transition:all .2s;}
+    .btn-reset:hover{border-color:var(--danger);color:var(--danger);}
+
+    /* شريط الإحصائيات السريع */
+    .quick-stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem;}
+    .qs-pill{display:flex;align-items:center;gap:6px;padding:.45rem 1rem;border-radius:99px;font-size:.82rem;font-weight:600;border:1.5px solid transparent;}
+    .qs-pill.confirmed{background:#dcfce7;color:#15803d;border-color:#86efac;}
+    .qs-pill.attended{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;}
+    .qs-pill.cancelled{background:#fef2f2;color:#b91c1c;border-color:#fca5a5;}
+    .qs-pill.total{background:var(--primary-light);color:var(--primary-dark);border-color:rgba(14,165,160,.3);}
+
+    /* فلاتر نشطة */
+    .active-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.75rem;}
+    .active-tag{display:inline-flex;align-items:center;gap:5px;background:var(--secondary-light);color:var(--secondary);border:1px solid rgba(99,102,241,.2);border-radius:99px;padding:3px 12px;font-size:.78rem;font-weight:500;}
+    .active-tag .x{cursor:pointer;font-weight:700;opacity:.6;}
+    .active-tag .x:hover{opacity:1;}
+
+    /* Table */
+    .status-badge{display:inline-flex;padding:3px 10px;border-radius:99px;font-size:.78rem;font-weight:600;}
+    .status-badge.confirmed{background:#dcfce7;color:#15803d;}
+    .status-badge.cancelled{background:#fef2f2;color:#b91c1c;}
+    .status-badge.attended{background:#dbeafe;color:#1d4ed8;}
+    .btn-attend{display:inline-flex;align-items:center;gap:4px;padding:.3rem .65rem;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;border-radius:var(--radius-sm);font-size:.75rem;cursor:pointer;font-family:var(--font-body);transition:all .2s;white-space:nowrap;}
+    .btn-attend:hover{background:#1d4ed8;color:white;}
+    .btn-attend.attended{background:#dcfce7;color:#15803d;border-color:#86efac;}
+    .btn-attend.attended:hover{background:#15803d;color:white;}
+
+    /* Sort headers */
+    .sort-th{cursor:pointer;user-select:none;white-space:nowrap;}
+    .sort-th:hover{color:var(--primary);}
+    .sort-arrow{font-size:.7rem;opacity:.5;}
+
+    /* Calendar */
+    .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+    .cal-day-header{text-align:center;font-size:.78rem;font-weight:700;color:var(--text-secondary);padding:.4rem 0;}
+    .cal-day{min-height:80px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:.5rem;transition:border-color .2s;}
+    .cal-day.has-bookings{border-color:var(--primary);background:var(--primary-light);}
+    .cal-day.today-cell{border-color:var(--secondary);background:var(--secondary-light);}
+    .cal-day-num{font-size:.82rem;font-weight:700;color:var(--text-primary);margin-bottom:.3rem;}
+    .cal-booking-pill{background:var(--primary);color:white;border-radius:4px;padding:2px 5px;font-size:.68rem;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    @media(max-width:640px){.filter-grid{grid-template-columns:1fr 1fr;}.quick-stats{gap:6px;}}
+  </style>
+</head>
+<body>
+<div class="admin-page">
+
+  <div class="admin-header">
+    <div>
+      <div class="admin-title">📋 الحجوزات</div>
+      <div class="admin-subtitle">إجمالي النتائج: {{ bookings|length }}</div>
+    </div>
+    <a href="/logout" class="btn-logout">🚪 خروج</a>
+  </div>
+
+  <div class="nav-links">
+    <a href="/dashboard"    class="nav-link">📊 الرئيسية</a>
+    <a href="/bookings"     class="nav-link active">📋 الحجوزات</a>
+    <a href="/patients"     class="nav-link">👥 المرضى</a>
+    <a href="/ratings"      class="nav-link">⭐ التقييمات</a>
+    <a href="/settings"     class="nav-link">⚙️ الإعدادات</a>
+    <a href="/upload_photo" class="nav-link">📷 صورة الدكتور</a>
+    <a href="/change_password" class="nav-link">🔐 كلمة السر</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash-msg {{ cat }}" style="margin-bottom:1rem;">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- ══ فلتر متقدم ══ -->
+  <form method="GET" action="/bookings" id="filter-form">
+    <input type="hidden" name="view" value="{{ view }}">
+
+    <div class="filter-panel">
+      <!-- بحث + عرض -->
+      <div class="filter-top">
+        <input class="filter-search" type="text" name="search"
+               placeholder="🔍 ابحث بالاسم أو الهاتف..."
+               value="{{ search }}">
+        <a href="/bookings?view=table" class="toggle-btn {{ 'active' if view == 'table' }}">☰ جدول</a>
+        <a href="/bookings?view=calendar" class="toggle-btn {{ 'active' if view == 'calendar' }}">📅 تقويم</a>
+        <a href="/export/bookings" class="toggle-btn">📥 CSV</a>
+      </div>
+
+      <!-- فلاتر متقدمة -->
+      <div class="filter-grid">
+        <div class="filter-group">
+          <label>📅 من تاريخ</label>
+          <input class="filter-date" type="date" name="date_from" value="{{ date_from }}">
+        </div>
+        <div class="filter-group">
+          <label>📅 إلى تاريخ</label>
+          <input class="filter-date" type="date" name="date_to" value="{{ date_to }}">
+        </div>
+        <div class="filter-group">
+          <label>🏷 الحالة</label>
+          <select class="filter-select" name="status_f">
+            <option value="">كل الحالات</option>
+            <option value="confirmed"  {{ 'selected' if status_f == 'confirmed' }}>✅ مؤكد</option>
+            <option value="attended"   {{ 'selected' if status_f == 'attended'  }}>🟢 حضر</option>
+            <option value="cancelled"  {{ 'selected' if status_f == 'cancelled' }}>❌ ملغي</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>🩺 الحالة الصحية</label>
+          <select class="filter-select" name="condition_f">
+            <option value="">كل الحالات</option>
+            <option value="Diabetes"            {{ 'selected' if condition_f == 'Diabetes' }}>🩸 السكر</option>
+            <option value="High Blood Pressure" {{ 'selected' if condition_f == 'High Blood Pressure' }}>❤️ الضغط</option>
+            <option value="Old Injury"          {{ 'selected' if condition_f == 'Old Injury' }}>🦴 إصابة قديمة</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>🕐 وقت الميعاد</label>
+          <select class="filter-select" name="time_f">
+            <option value="">كل الأوقات</option>
+            <option value="AM" {{ 'selected' if time_f == 'AM' }}>🌅 صباح (AM)</option>
+            <option value="PM" {{ 'selected' if time_f == 'PM' }}>🌆 مساء (PM)</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>🔃 ترتيب حسب</label>
+          <select class="filter-select" name="sort_by">
+            <option value="date_asc"  {{ 'selected' if sort_by == 'date_asc'  }}>📅 التاريخ (الأقدم أولاً)</option>
+            <option value="date_desc" {{ 'selected' if sort_by == 'date_desc' }}>📅 التاريخ (الأحدث أولاً)</option>
+            <option value="name"      {{ 'selected' if sort_by == 'name'      }}>🔤 الاسم (أبجدي)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button type="submit" class="btn-filter">🔍 تطبيق الفلتر</button>
+        {% if active_filters %}
+          <a href="/bookings?view={{ view }}" class="btn-reset">✖ إلغاء الفلاتر</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+
+  <!-- فلاتر نشطة -->
+  {% if active_filters %}
+    <div class="active-tags">
+      {% if search %}
+        <span class="active-tag">🔍 "{{ search }}" <span class="x" onclick="clearFilter('search')">×</span></span>
+      {% endif %}
+      {% if date_from %}
+        <span class="active-tag">📅 من {{ date_from }} <span class="x" onclick="clearFilter('date_from')">×</span></span>
+      {% endif %}
+      {% if date_to %}
+        <span class="active-tag">📅 إلى {{ date_to }} <span class="x" onclick="clearFilter('date_to')">×</span></span>
+      {% endif %}
+      {% if status_f %}
+        <span class="active-tag">🏷 {{ 'مؤكد' if status_f=='confirmed' else ('حضر' if status_f=='attended' else 'ملغي') }} <span class="x" onclick="clearFilter('status_f')">×</span></span>
+      {% endif %}
+      {% if condition_f %}
+        <span class="active-tag">🩺 {{ condition_f }} <span class="x" onclick="clearFilter('condition_f')">×</span></span>
+      {% endif %}
+      {% if time_f %}
+        <span class="active-tag">🕐 {{ time_f }} <span class="x" onclick="clearFilter('time_f')">×</span></span>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- إحصائيات سريعة -->
+  <div class="quick-stats">
+    <span class="qs-pill total">📊 الإجمالي: {{ bookings|length }}</span>
+    <span class="qs-pill confirmed">✅ مؤكد: {{ stats.confirmed }}</span>
+    <span class="qs-pill attended">🟢 حضر: {{ stats.attended }}</span>
+    <span class="qs-pill cancelled">❌ ملغي: {{ stats.cancelled }}</span>
+  </div>
+
+  {% if view == 'calendar' %}
+  <!-- ══ CALENDAR VIEW ══ -->
+  <div class="bookings-table-wrap" style="padding:1.25rem;">
+    <div style="font-family:var(--font-display);font-weight:700;margin-bottom:1rem;">📅 تقويم الشهر الحالي</div>
+    <div class="calendar-grid">
+      {% for day in ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'] %}
+        <div class="cal-day-header">{{ day }}</div>
+      {% endfor %}
+      {% for d, blist in cal_data.items() | sort %}
+        <div class="cal-day {{ 'today-cell' if d == today }} {{ 'has-bookings' if blist }}">
+          <div class="cal-day-num">{{ d[8:] }}</div>
+          {% for b in blist[:2] %}
+            <div class="cal-booking-pill">{{ b.appointment }} {{ b.name }}</div>
+          {% endfor %}
+          {% if blist|length > 2 %}
+            <div style="font-size:.68rem;color:var(--primary);font-weight:600;">+{{ blist|length - 2 }} أكثر</div>
+          {% endif %}
+        </div>
+      {% else %}
+        <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-muted);">لا توجد حجوزات هذا الشهر</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ══ TABLE VIEW ══ -->
+  <div class="bookings-table-wrap">
+    {% if bookings %}
+      <table class="bookings-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>الاسم</th>
+            <th>العمر</th>
+            <th>الهاتف</th>
+            <th>الشكوى</th>
+            <th>الحالات</th>
+            <th>التاريخ</th>
+            <th>الميعاد</th>
+            <th>الحالة</th>
+            <th>حضور</th>
+            <th>حذف</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bookings %}
+            <tr>
+              <td style="color:var(--text-muted);font-size:.8rem;">{{ loop.index }}</td>
+              <td style="font-weight:600;">{{ b.name }}</td>
+              <td>{{ b.age }}</td>
+              <td style="direction:ltr;text-align:right;">{{ b.phone }}</td>
+              <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ b.pain }}">{{ b.pain }}</td>
+              <td style="font-size:.78rem;color:var(--text-secondary);">{{ b.conditions or '—' }}</td>
+              <td>{{ b.date }}</td>
+              <td><span class="appointment-badge">🕐 {{ b.appointment }}</span></td>
+              <td>
+                <span class="status-badge {{ b.status }}">
+                  {% if b.status == 'confirmed' %}✅ مؤكد
+                  {% elif b.status == 'attended' %}🟢 حضر
+                  {% else %}❌ ملغي{% endif %}
+                </span>
+              </td>
+              <td>
+                {% if b.status != 'cancelled' %}
+                  <form method="POST" action="/attend_booking/{{ b.id }}" style="margin:0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                            class="btn-attend {{ 'attended' if b.status == 'attended' }}"
+                            title="{{ 'إلغاء تأكيد الحضور' if b.status == 'attended' else 'تأكيد الحضور' }}">
+                      {{ '✅ حضر' if b.status == 'attended' else '☑ لم يحضر' }}
+                    </button>
+                  </form>
+                {% else %}
+                  <span style="color:var(--text-muted);font-size:.78rem;">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="POST" action="/delete_booking/{{ b.id }}"
+                      onsubmit="return confirm('حذف حجز {{ b.name }}؟')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn-delete">🗑</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div class="empty-text">
+          {% if active_filters %}لا توجد نتائج تطابق الفلتر{% else %}لا توجد حجوزات{% endif %}
+        </div>
+        {% if active_filters %}
+          <a href="/bookings" style="color:var(--primary);font-size:.9rem;text-decoration:none;margin-top:.5rem;display:block;">
+            إلغاء الفلاتر ←
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+function clearFilter(name) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(name);
+  window.location.href = url.toString();
+}
+</script>
+</body>
+</html>
