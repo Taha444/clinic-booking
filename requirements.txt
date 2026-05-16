@@ -7,3 +7,4 @@ flask_sqlalchemy
 Werkzeug
 Flask-Limiter
 twilio
+psycopg2-binary
