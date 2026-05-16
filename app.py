@@ -215,16 +215,38 @@ class DoctorNotesForm(FlaskForm):
 
 
 # ─────────────────────────────────────────────
-#  WHATSAPP  (Twilio / CallMeBot)
+#  SMS  (Twilio — للمريض)
+# ─────────────────────────────────────────────
+def send_sms(to_phone, message):
+    """إرسال SMS عبر Twilio للمريض"""
+    try:
+        from twilio.rest import Client
+        sid   = os.getenv("TWILIO_ACCOUNT_SID")
+        token = os.getenv("TWILIO_AUTH_TOKEN")
+        from_ = os.getenv("TWILIO_FROM_NUMBER")
+        if not all([sid, token, from_]):
+            app.logger.info("Twilio not configured, skipping SMS")
+            return
+        # الرقم المصري: نضيف +2 في الأول لو مش موجود
+        if not to_phone.startswith('+'):
+            to_phone = '+2' + to_phone
+        client = Client(sid, token)
+        client.messages.create(body=message, from_=from_, to=to_phone)
+        app.logger.info(f"SMS sent to {to_phone}")
+    except Exception as e:
+        app.logger.error(f"SMS error: {e}")
+
+
+# ─────────────────────────────────────────────
+#  WHATSAPP  (CallMeBot — للدكتور)
 # ─────────────────────────────────────────────
 def send_whatsapp(phone, message):
-    """إرسال واتساب عبر CallMeBot (مجاني) أو Twilio"""
+    """إرسال واتساب للدكتور عبر CallMeBot"""
     try:
+        import urllib.request, urllib.parse
         api_key = os.getenv("CALLMEBOT_API_KEY")
         if not api_key:
-            app.logger.info("WhatsApp: CALLMEBOT_API_KEY not set, skipping")
             return
-        import urllib.request, urllib.parse
         url = (f"https://api.callmebot.com/whatsapp.php"
                f"?phone={phone}&text={urllib.parse.quote(message)}&apikey={api_key}")
         urllib.request.urlopen(url, timeout=10)
@@ -233,35 +255,58 @@ def send_whatsapp(phone, message):
 
 
 def get_doctor_phone():
-    """رقم الدكتور من الـ environment"""
     return os.getenv("DOCTOR_PHONE", "")
 
 
 def notify_booking(name, phone, date, appointment):
-    """إشعار واتساب للدكتور عند حجز جديد"""
+    """إشعار عند حجز جديد: SMS للمريض + واتساب للدكتور"""
+    # ── SMS للمريض ──
+    patient_msg = (
+        f"مركز الهادي للعلاج الطبيعي\n"
+        f"تم تاكيد حجزك بنجاح\n"
+        f"الاسم: {name}\n"
+        f"التاريخ: {date}\n"
+        f"الميعاد: {appointment}\n"
+        f"يرجى الحضور قبل الموعد بـ 10 دقائق"
+    )
+    threading.Thread(target=send_sms, args=(phone, patient_msg), daemon=True).start()
+
+    # ── واتساب للدكتور ──
     doctor = get_doctor_phone()
-    if not doctor:
-        app.logger.info("DOCTOR_PHONE not set, skipping WhatsApp")
-        return
-    msg = (f"🏥 حجز جديد - مركز الهادي\n"
-           f"👤 الاسم: {name}\n"
-           f"📱 الهاتف: {phone}\n"
-           f"📅 التاريخ: {date}\n"
-           f"🕐 الميعاد: {appointment}")
-    threading.Thread(target=send_whatsapp, args=(doctor, msg), daemon=True).start()
+    if doctor:
+        doctor_msg = (
+            f"حجز جديد - مركز الهادي\n"
+            f"الاسم: {name}\n"
+            f"الهاتف: {phone}\n"
+            f"التاريخ: {date}\n"
+            f"الميعاد: {appointment}"
+        )
+        threading.Thread(target=send_whatsapp, args=(doctor, doctor_msg), daemon=True).start()
 
 
 def notify_reminder(name, phone, date, appointment):
-    """تذكير للدكتور قبل الموعد بـ 24 ساعة"""
+    """تذكير قبل الموعد بـ 24 ساعة: SMS للمريض + واتساب للدكتور"""
+    # ── SMS للمريض ──
+    patient_msg = (
+        f"تذكير - مركز الهادي للعلاج الطبيعي\n"
+        f"لديك موعد غداً\n"
+        f"التاريخ: {date}\n"
+        f"الميعاد: {appointment}\n"
+        f"يرجى الحضور قبل الموعد بـ 10 دقائق"
+    )
+    threading.Thread(target=send_sms, args=(phone, patient_msg), daemon=True).start()
+
+    # ── واتساب للدكتور ──
     doctor = get_doctor_phone()
-    if not doctor:
-        return
-    msg = (f"⏰ تذكير بموعد غد - مركز الهادي\n"
-           f"👤 {name}\n"
-           f"📱 {phone}\n"
-           f"📅 {date}\n"
-           f"🕐 {appointment}")
-    threading.Thread(target=send_whatsapp, args=(doctor, msg), daemon=True).start()
+    if doctor:
+        doctor_msg = (
+            f"تذكير موعد غد - مركز الهادي\n"
+            f"الاسم: {name}\n"
+            f"الهاتف: {phone}\n"
+            f"التاريخ: {date}\n"
+            f"الميعاد: {appointment}"
+        )
+        threading.Thread(target=send_whatsapp, args=(doctor, doctor_msg), daemon=True).start()
 
 
 # ─────────────────────────────────────────────
@@ -593,6 +638,9 @@ def bookings():
 @admin_required
 def delete_booking(bid):
     b = Booking.query.get_or_404(bid)
+    # احذف التقييم والملاحظات المرتبطة أولاً قبل الحجز
+    BookingRating.query.filter_by(booking_id=bid).delete()
+    SessionNote.query.filter_by(booking_id=bid).delete()
     db.session.delete(b)
     db.session.commit()
     flash("تم حذف الحجز", 'success')
@@ -681,6 +729,22 @@ def delete_patient(pid):
     flash("تم حذف ملف المريض", 'success')
     return redirect('/patients')
 
+
+
+# ─────────────────────────────────────────────
+#  ADMIN — RATINGS
+# ─────────────────────────────────────────────
+@app.route('/ratings')
+@admin_required
+def ratings():
+    all_ratings = (BookingRating.query
+                   .order_by(BookingRating.created_at.desc())
+                   .all())
+    avg = round(sum(r.stars for r in all_ratings) / len(all_ratings), 1) if all_ratings else 0
+    dist = {i: sum(1 for r in all_ratings if r.stars == i) for i in range(1, 6)}
+    return render_template('ratings.html',
+                           ratings=all_ratings, avg=avg,
+                           dist=dist, total=len(all_ratings))
 
 # ─────────────────────────────────────────────
 #  CSV EXPORT
