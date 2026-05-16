@@ -24,7 +24,18 @@ app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
 app.config['SESSION_COOKIE_SECURE']   = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
+# ✅ PostgreSQL في production، SQLite للـ development
+_db_url = os.getenv('DATABASE_URL', 'sqlite:///clinic.db')
+# Railway بيبعت postgres:// — SQLAlchemy محتاج postgresql://
+if _db_url.startswith('postgres://'):
+    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,       # تحقق إن الconnection شغال
+    'pool_recycle':  300,        # أعد الconnection كل 5 دقائق
+    'pool_size':     10,         # max connections في نفس الوقت
+    'max_overflow':  20,         # connections إضافية وقت الضغط
+}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER']    = os.path.join(os.path.dirname(__file__), 'static')
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024   # 5MB max
@@ -39,11 +50,31 @@ CAIRO = pytz.timezone('Africa/Cairo')
 # ─────────────────────────────────────────────
 #  SECURITY HEADERS
 # ─────────────────────────────────────────────
+@app.before_request
+def force_https():
+    """Redirect HTTP to HTTPS in production"""
+    if not request.is_secure and request.headers.get('X-Forwarded-Proto', 'http') == 'http':
+        if not app.debug and 'railway' in request.headers.get('Host', '').lower():
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
+
+
 @app.after_request
 def security_headers(response):
     response.headers['X-Frame-Options']           = 'DENY'
     response.headers['X-Content-Type-Options']    = 'nosniff'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+    # ✅ Content Security Policy
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "script-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self';"
+    )
+    response.headers['Referrer-Policy']           = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy']        = 'geolocation=(), microphone=(), camera=()'
     return response
 
 
@@ -464,6 +495,7 @@ def index():
 
 
 @app.route('/available_slots')
+@limiter.limit("30 per minute")
 def available_slots():
     date = request.args.get('date')
     if not date:
@@ -645,7 +677,7 @@ def cancel_booking_page(token):
 
 
 @app.route('/cancel/<token>/confirm', methods=['POST'])
-@limiter.limit("3 per minute")
+@limiter.limit("5 per minute")
 def cancel_booking_confirm(token):
     b = Booking.query.filter_by(cancel_token=token).first_or_404()
     if b.status == 'cancelled':
@@ -925,6 +957,7 @@ def bookings():
 
 @app.route('/delete_booking/<int:bid>', methods=['POST'])
 @admin_required
+@limiter.limit("20 per minute")
 def delete_booking(bid):
     b = Booking.query.get_or_404(bid)
     # احذف التقييم والملاحظات المرتبطة أولاً قبل الحجز
@@ -938,6 +971,7 @@ def delete_booking(bid):
 
 @app.route('/attend_booking/<int:bid>', methods=['POST'])
 @admin_required
+@limiter.limit("30 per minute")
 def attend_booking(bid):
     b = Booking.query.get_or_404(bid)
     if b.status == 'confirmed':
