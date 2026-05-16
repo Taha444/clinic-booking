@@ -17,13 +17,13 @@
     .sc-body{padding:1.25rem;}
 
     /* أيام الأسبوع */
-    .days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:1rem;}
+    .days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:1rem;}
     .day-item{position:relative;}
     .day-item input[type="checkbox"]{position:absolute;opacity:0;width:0;height:0;}
-    .day-label{display:flex;flex-direction:column;align-items:center;gap:4px;padding:.6rem .3rem;background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-size:.75rem;color:var(--text-secondary);text-align:center;}
+    .day-label{display:flex;flex-direction:column;align-items:center;gap:5px;padding:.75rem .4rem;background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-size:.82rem;color:var(--text-secondary);text-align:center;white-space:nowrap;min-width:0;}
     .day-item input:checked + .day-label{background:var(--primary);border-color:var(--primary);color:white;}
-    .day-label:hover{border-color:var(--primary);}
-    .day-emoji{font-size:1.1rem;}
+    .day-label:hover{border-color:var(--primary);background:var(--primary-light);}
+    .day-emoji{font-size:1.3rem;}
 
     /* أوقات */
     .time-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:.9rem;}
@@ -55,7 +55,7 @@
     .full-card{grid-column:1/-1;}
     .info-note{background:var(--primary-light);border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.82rem;color:var(--primary-dark);margin-bottom:.9rem;line-height:1.5;}
 
-    @media(max-width:640px){.settings-grid{grid-template-columns:1fr;}.days-grid{grid-template-columns:repeat(4,1fr);}.time-row{grid-template-columns:1fr;}}
+    @media(max-width:640px){.settings-grid{grid-template-columns:1fr;}.days-grid{grid-template-columns:repeat(4,1fr);gap:6px;}.day-label{font-size:.75rem;padding:.6rem .3rem;}.time-row{grid-template-columns:1fr;}}
   </style>
 </head>
 <body>
@@ -175,13 +175,13 @@
 
           <div class="days-grid">
             {% set days = [
-              (0, 'الأحد', '🌅'),
+              (0, 'الأحد',    '🌅'),
               (1, 'الإثنين', '💼'),
-              (2, 'الثلاثاء', '💼'),
-              (3, 'الأربعاء', '💼'),
-              (4, 'الخميس', '💼'),
-              (5, 'الجمعة', '🕌'),
-              (6, 'السبت', '🏖'),
+              (2, 'الثلاثاء','💼'),
+              (3, 'الأربعاء','💼'),
+              (4, 'الخميس',  '💼'),
+              (5, 'الجمعة',  '🕌'),
+              (6, 'السبت',   '🏖'),
             ] %}
             {% for num, name, emoji in days %}
               <div class="day-item">
@@ -192,7 +192,7 @@
                        {{ 'checked' if num in work_days_set }}>
                 <label class="day-label" for="day{{ num }}">
                   <span class="day-emoji">{{ emoji }}</span>
-                  {{ name[:3] }}
+                  {{ name }}
                 </label>
               </div>
             {% endfor %}
