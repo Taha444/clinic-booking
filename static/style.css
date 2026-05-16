@@ -874,3 +874,30 @@ select.field-input {
   .bookings-table th, .bookings-table td { padding: .6rem .5rem; }
   .admin-header { padding: 1.25rem; }
 }
+
+/* ───── زرار التقييم ───── */
+.btn-rate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: .85rem 2rem;
+  background: var(--surface);
+  color: var(--primary);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .25s;
+  margin-top: 10px;
+}
+
+.btn-rate:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
