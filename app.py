@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 from werkzeug.security import check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from sqlalchemy import UniqueConstraint
 from sqlalchemy.exc import IntegrityError
 
 load_dotenv()
@@ -61,9 +60,7 @@ class Booking(db.Model):
     created_at  = db.Column(db.DateTime,    default=datetime.utcnow)
     reminder_sent = db.Column(db.Boolean,   default=False)
 
-    __table_args__ = (
-        UniqueConstraint('date', 'appointment', name='uq_date_appointment'),
-    )
+    __table_args__ = {}  # UniqueConstraint شيلناه — الـ check بيتم في الكود
     # العلاقة بملاحظات الجلسة
     session_notes = db.relationship('SessionNote', backref='booking', lazy=True)
     # العلاقة بالتقييم
