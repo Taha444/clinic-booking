@@ -1,4 +1,5 @@
 import os, threading, html, csv, io, secrets
+from werkzeug.utils import secure_filename
 from functools import wraps
 from datetime import datetime, timedelta
 from flask import (Flask, render_template, request, redirect,
@@ -10,7 +11,7 @@ from wtforms import (StringField, IntegerField, TelField, DateField,
 from wtforms.validators import DataRequired, NumberRange, Length, Regexp, Optional
 import pytz
 from dotenv import load_dotenv
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +26,9 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER']    = os.path.join(os.path.dirname(__file__), 'static')
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024   # 5MB max
+ALLOWED_EXT = {'png', 'jpg', 'jpeg', 'webp'}
 
 db     = SQLAlchemy(app)
 csrf   = CSRFProtect(app)
@@ -55,7 +59,7 @@ class Booking(db.Model):
     conditions  = db.Column(db.String(300))
     date        = db.Column(db.String(20),  nullable=False)
     appointment = db.Column(db.String(20),  nullable=False)
-    status      = db.Column(db.String(20),  default='confirmed')   # confirmed/cancelled
+    status      = db.Column(db.String(20),  default='confirmed')   # confirmed/cancelled/attended
     cancel_token= db.Column(db.String(64),  unique=True)           # توكن الإلغاء
     created_at  = db.Column(db.DateTime,    default=datetime.utcnow)
     reminder_sent = db.Column(db.Boolean,   default=False)
@@ -109,14 +113,91 @@ class BookingRating(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class ClinicSettings(db.Model):
+    """إعدادات العيادة — صف واحد دائماً"""
+    id            = db.Column(db.Integer, primary_key=True)
+    # أوقات العمل
+    start_hour    = db.Column(db.Integer, default=3)    # 3 PM
+    start_minute  = db.Column(db.String(2), default='00')
+    end_hour      = db.Column(db.Integer, default=11)   # 11 PM
+    slot_duration = db.Column(db.Integer, default=30)   # بالدقائق
+    # أيام العمل (0=الأحد ... 6=السبت) — مخزنة كـ JSON string
+    work_days     = db.Column(db.String(20), default='0,1,2,3,5,6')  # بدون الجمعة
+    # إجازات استثنائية (تواريخ مفصولة بفاصلة)
+    holidays      = db.Column(db.Text, default='')
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AdminCredentials(db.Model):
+    """بيانات الأدمن — مخزّنة في DB عشان تتغير أوتوماتيك"""
+    id            = db.Column(db.Integer, primary_key=True)
+    username      = db.Column(db.String(100), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 with app.app_context():
     db.create_all()
+    # seed الأدمن من الـ env variables لو DB فاضي
+    if not AdminCredentials.query.first():
+        env_user = os.getenv("ADMIN_USERNAME", "admin")
+        env_hash = os.getenv("ADMIN_PASSWORD", "")
+        if env_hash:
+            db.session.add(AdminCredentials(username=env_user, password_hash=env_hash))
+            db.session.commit()
 
 
 # ─────────────────────────────────────────────
 #  HELPERS
 # ─────────────────────────────────────────────
-ALL_SLOTS = [f"{h}:{m} PM" for h in range(3, 11) for m in ('00', '30')]
+def get_admin():
+    """جيب بيانات الأدمن من DB — fallback للـ env لو DB فاضي"""
+    admin = AdminCredentials.query.first()
+    if admin:
+        return admin.username, admin.password_hash
+    return os.getenv("ADMIN_USERNAME", "admin"), os.getenv("ADMIN_PASSWORD", "")
+
+
+def get_settings():
+    """جيب إعدادات العيادة — أنشئها لو مش موجودة"""
+    s = ClinicSettings.query.first()
+    if not s:
+        s = ClinicSettings()
+        db.session.add(s)
+        db.session.commit()
+    return s
+
+
+def get_all_slots():
+    """المواعيد المتاحة حسب الإعدادات"""
+    s   = get_settings()
+    slots = []
+    hour  = s.start_hour
+    minute = int(s.start_minute)
+    while True:
+        # حوّل لـ 12h format
+        h12  = hour if hour <= 12 else hour - 12
+        ampm = 'AM' if hour < 12 else 'PM'
+        slots.append(f"{h12}:{minute:02d} {ampm}")
+        minute += s.slot_duration
+        if minute >= 60:
+            hour  += minute // 60
+            minute = minute % 60
+        if hour > s.end_hour or (hour == s.end_hour and minute > 0):
+            break
+    return slots
+
+
+def get_work_days():
+    """أيام العمل كـ set من الأرقام (0=الأحد)"""
+    s = get_settings()
+    return {int(d) for d in s.work_days.split(',') if d.strip()}
+
+
+def get_holidays():
+    """الإجازات الاستثنائية كـ set من التواريخ"""
+    s = get_settings()
+    return {d.strip() for d in s.holidays.split(',') if d.strip()}
 
 
 def egypt_today():
@@ -126,10 +207,17 @@ def egypt_today():
 def valid_date(date_str):
     try:
         d = datetime.strptime(date_str, '%Y-%m-%d').date()
-        if d.weekday() == 4:
-            return False, "العيادة مغلقة يوم الجمعة"
         if d < egypt_today():
             return False, "لا يمكن الحجز في تاريخ سابق"
+        # تحقق من أيام العمل (Python weekday: 0=Mon, 6=Sun)
+        # نحوّل لـ format الإعدادات (0=الأحد)
+        py_wd = d.weekday()  # 0=Mon..6=Sun
+        # Sun=6 in python → 0 in our system, Mon=0→1, ..., Sat=5→6
+        our_wd = (py_wd + 1) % 7
+        if our_wd not in get_work_days():
+            return False, "العيادة مغلقة في هذا اليوم"
+        if date_str in get_holidays():
+            return False, "هذا اليوم إجازة استثنائية"
         return True, d
     except ValueError:
         return False, "تاريخ غير صالح"
@@ -137,7 +225,10 @@ def valid_date(date_str):
 
 def booked_slots(date):
     return [b.appointment for b in
-            Booking.query.filter_by(date=date, status='confirmed').all()]
+            Booking.query.filter(
+                Booking.date == date,
+                Booking.status.in_(['confirmed', 'attended'])
+            ).all()]
 
 
 def upsert_patient(booking):
@@ -347,7 +438,7 @@ def index():
     if not ok:
         date = today
 
-    free  = [s for s in ALL_SLOTS if s not in booked_slots(date)]
+    free  = [s for s in get_all_slots() if s not in booked_slots(date)]
     form  = BookingForm()
     form.appointment.choices = [(t, t) for t in free] if free else [('', 'لا توجد مواعيد')]
     form.date.data = datetime.strptime(date, '%Y-%m-%d')
@@ -362,7 +453,7 @@ def available_slots():
     ok, result = valid_date(date)
     if not ok:
         return jsonify({'available_times': [], 'error': result})
-    return jsonify({'available_times': [s for s in ALL_SLOTS if s not in booked_slots(date)]})
+    return jsonify({'available_times': [s for s in get_all_slots() if s not in booked_slots(date)]})
 
 
 @app.route('/submit', methods=['POST'])
@@ -533,8 +624,9 @@ def login():
     form = LoginForm()
     error = None
     if form.validate_on_submit():
-        if (form.username.data == os.getenv("ADMIN_USERNAME") and
-                check_password_hash(os.getenv("ADMIN_PASSWORD", ""), form.password.data)):
+        admin_user, admin_hash = get_admin()
+        if (form.username.data == admin_user and
+                check_password_hash(admin_hash, form.password.data)):
             session['admin_logged_in'] = True
             return redirect('/dashboard')
         error = "بيانات الدخول غير صحيحة"
@@ -545,6 +637,52 @@ def login():
 def logout():
     session.clear()
     return redirect('/login')
+
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@admin_required
+def change_password():
+    error = None
+
+    if request.method == 'POST':
+        current      = request.form.get('current_password', '')
+        new_pass     = request.form.get('new_password', '').strip()
+        confirm      = request.form.get('confirm_password', '').strip()
+        new_username = request.form.get('new_username', '').strip()
+
+        _, stored_hash = get_admin()
+        admin_rec      = AdminCredentials.query.first()
+
+        if not check_password_hash(stored_hash, current):
+            error = "كلمة السر الحالية غير صحيحة"
+        elif len(new_pass) < 8:
+            error = "كلمة السر الجديدة يجب أن تكون 8 أحرف على الأقل"
+        elif new_pass != confirm:
+            error = "كلمة السر الجديدة وتأكيدها غير متطابقين"
+        elif current == new_pass:
+            error = "كلمة السر الجديدة يجب أن تختلف عن الحالية"
+        else:
+            new_hash = generate_password_hash(new_pass)
+            if admin_rec:
+                admin_rec.password_hash = new_hash
+                if new_username:
+                    admin_rec.username = new_username
+            else:
+                # أنشئ record جديد
+                admin_user, _ = get_admin()
+                db.session.add(AdminCredentials(
+                    username=new_username or admin_user,
+                    password_hash=new_hash))
+            db.session.commit()
+            # خروج تلقائي — يسجّل دخول بكلمة السر الجديدة
+            session.clear()
+            flash("✅ تم تغيير كلمة السر بنجاح! سجّل دخولك من جديد.", 'success')
+            return redirect('/login')
+
+    current_username, _ = get_admin()
+    return render_template('change_password.html',
+                           error=error,
+                           current_username=current_username)
 
 
 # ─────────────────────────────────────────────
@@ -558,6 +696,7 @@ def dashboard():
     today_count= Booking.query.filter_by(date=today, status='confirmed').count()
     patients_n = PatientProfile.query.count()
     cancelled  = Booking.query.filter_by(status='cancelled').count()
+    attended   = Booking.query.filter_by(status='attended').count()
 
     # آخر 7 أيام — حجوزات يومية
     days_data = []
@@ -587,7 +726,7 @@ def dashboard():
 
     return render_template('dashboard.html',
         total=total, today_count=today_count,
-        patients_n=patients_n, cancelled=cancelled,
+        patients_n=patients_n, cancelled=cancelled, attended=attended,
         days_data=days_data, cond_count=cond_count,
         avg_rating=avg_rating, ratings_count=len(ratings),
         recent=recent)
@@ -600,18 +739,50 @@ def dashboard():
 @admin_required
 def bookings():
     search      = request.args.get('search', '').strip()
-    date_filter = request.args.get('date_filter', '').strip()
-    view        = request.args.get('view', 'table')   # table | calendar
+    date_from   = request.args.get('date_from', '').strip()
+    date_to     = request.args.get('date_to', '').strip()
+    status_f    = request.args.get('status_f', '').strip()     # confirmed/cancelled/attended
+    condition_f = request.args.get('condition_f', '').strip()  # Diabetes/High Blood Pressure/Old Injury
+    time_f      = request.args.get('time_f', '').strip()       # AM/PM slot
+    sort_by     = request.args.get('sort_by', 'date_asc')      # date_asc/date_desc/name
+    view        = request.args.get('view', 'table')
+
     query = Booking.query
+
     if search:
         query = query.filter(db.or_(
             Booking.name.ilike(f'%{search}%'),
             Booking.phone.ilike(f'%{search}%')))
-    if date_filter:
-        query = query.filter_by(date=date_filter)
-    all_bookings = query.order_by(Booking.date, Booking.appointment).all()
+    if date_from:
+        query = query.filter(Booking.date >= date_from)
+    if date_to:
+        query = query.filter(Booking.date <= date_to)
+    if status_f:
+        query = query.filter(Booking.status == status_f)
+    if condition_f:
+        query = query.filter(Booking.conditions.ilike(f'%{condition_f}%'))
+    if time_f == 'AM':
+        query = query.filter(Booking.appointment.ilike('%AM%'))
+    elif time_f == 'PM':
+        query = query.filter(Booking.appointment.ilike('%PM%'))
 
-    # بيانات Calendar — حجوزات الشهر الحالي
+    if sort_by == 'date_desc':
+        query = query.order_by(Booking.date.desc(), Booking.appointment)
+    elif sort_by == 'name':
+        query = query.order_by(Booking.name)
+    else:
+        query = query.order_by(Booking.date, Booking.appointment)
+
+    all_bookings = query.all()
+
+    # إحصائيات سريعة للفلتر الحالي
+    stats = {
+        'confirmed': sum(1 for b in all_bookings if b.status == 'confirmed'),
+        'attended':  sum(1 for b in all_bookings if b.status == 'attended'),
+        'cancelled': sum(1 for b in all_bookings if b.status == 'cancelled'),
+    }
+
+    # بيانات Calendar
     cal_data = {}
     if view == 'calendar':
         today = egypt_today()
@@ -621,14 +792,21 @@ def bookings():
         month_bookings = Booking.query.filter(
             Booking.date >= first.strftime('%Y-%m-%d'),
             Booking.date <  last.strftime('%Y-%m-%d'),
-            Booking.status == 'confirmed').all()
+            Booking.status.in_(['confirmed', 'attended'])).all()
         for b in month_bookings:
             cal_data.setdefault(b.date, []).append(b)
 
+    # الفلاتر النشطة
+    active_filters = any([search, date_from, date_to, status_f, condition_f, time_f])
+
     return render_template('bookings.html',
         bookings=all_bookings, search=search,
-        date_filter=date_filter, view=view,
-        cal_data=cal_data, today=egypt_today().strftime('%Y-%m-%d'))
+        date_from=date_from, date_to=date_to,
+        status_f=status_f, condition_f=condition_f,
+        time_f=time_f, sort_by=sort_by,
+        view=view, cal_data=cal_data,
+        today=egypt_today().strftime('%Y-%m-%d'),
+        stats=stats, active_filters=active_filters)
 
 
 @app.route('/delete_booking/<int:bid>', methods=['POST'])
@@ -642,6 +820,20 @@ def delete_booking(bid):
     db.session.commit()
     flash("تم حذف الحجز", 'success')
     return redirect('/bookings')
+
+
+@app.route('/attend_booking/<int:bid>', methods=['POST'])
+@admin_required
+def attend_booking(bid):
+    b = Booking.query.get_or_404(bid)
+    if b.status == 'confirmed':
+        b.status = 'attended'
+        flash(f"✅ تم تأكيد حضور {b.name}", 'success')
+    elif b.status == 'attended':
+        b.status = 'confirmed'
+        flash("↩️ تم إلغاء تأكيد الحضور", 'success')
+    db.session.commit()
+    return redirect(request.referrer or '/bookings')
 
 
 # ─────────────────────────────────────────────
@@ -742,6 +934,99 @@ def ratings():
     return render_template('ratings.html',
                            ratings=all_ratings, avg=avg,
                            dist=dist, total=len(all_ratings))
+
+
+
+# ─────────────────────────────────────────────
+#  ADMIN — CLINIC SETTINGS
+# ─────────────────────────────────────────────
+@app.route('/settings', methods=['GET', 'POST'])
+@admin_required
+def clinic_settings():
+    s = get_settings()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'hours':
+            s.start_hour    = int(request.form.get('start_hour', 3))
+            s.start_minute  = request.form.get('start_minute', '00')
+            s.end_hour      = int(request.form.get('end_hour', 11))
+            s.slot_duration = int(request.form.get('slot_duration', 30))
+            db.session.commit()
+            flash('✅ تم حفظ أوقات العمل', 'success')
+
+        elif action == 'days':
+            days = request.form.getlist('work_days')
+            s.work_days = ','.join(days) if days else ''
+            db.session.commit()
+            flash('✅ تم حفظ أيام العمل', 'success')
+
+        elif action == 'add_holiday':
+            date = request.form.get('holiday_date', '').strip()
+            if date:
+                existing = {d.strip() for d in s.holidays.split(',') if d.strip()}
+                existing.add(date)
+                s.holidays = ','.join(sorted(existing))
+                db.session.commit()
+                flash(f'✅ تمت إضافة إجازة {date}', 'success')
+
+        elif action == 'remove_holiday':
+            date = request.form.get('holiday_date', '').strip()
+            if date:
+                existing = {d.strip() for d in s.holidays.split(',') if d.strip()}
+                existing.discard(date)
+                s.holidays = ','.join(sorted(existing))
+                db.session.commit()
+                flash(f'تم حذف إجازة {date}', 'success')
+
+        return redirect('/settings')
+
+    # حسب المواعيد الحالية
+    slots_preview = get_all_slots()
+    work_days_set = get_work_days()
+    holidays_list = sorted([d for d in s.holidays.split(',') if d.strip()])
+
+    return render_template('clinic_settings.html',
+        s=s, slots_preview=slots_preview,
+        work_days_set=work_days_set,
+        holidays_list=holidays_list,
+        today=egypt_today().strftime('%Y-%m-%d'))
+
+# ─────────────────────────────────────────────
+#  ADMIN — DOCTOR PHOTO UPLOAD
+# ─────────────────────────────────────────────
+@app.route('/upload_photo', methods=['GET', 'POST'])
+@admin_required
+def upload_photo():
+    if request.method == 'POST':
+        f = request.files.get('photo')
+        if not f or f.filename == '':
+            flash('يرجى اختيار صورة', 'error')
+            return redirect('/upload_photo')
+        ext = f.filename.rsplit('.', 1)[-1].lower()
+        if ext not in ALLOWED_EXT:
+            flash('صيغة غير مدعومة — يُسمح فقط بـ JPG, PNG, WEBP', 'error')
+            return redirect('/upload_photo')
+        # احفظها باسم ثابت doctor-clean.<ext>
+        filename = f'doctor-clean.{ext}'
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        # احذف الصورة القديمة لو بصيغة مختلفة
+        for old_ext in ALLOWED_EXT:
+            old_path = os.path.join(app.config['UPLOAD_FOLDER'], f'doctor-clean.{old_ext}')
+            if os.path.exists(old_path) and old_ext != ext:
+                os.remove(old_path)
+        f.save(save_path)
+        flash('✅ تم رفع الصورة بنجاح', 'success')
+        return redirect('/upload_photo')
+    # GET — اعرض الصفحة
+    current = None
+    for ext in ALLOWED_EXT:
+        p = os.path.join(app.config['UPLOAD_FOLDER'], f'doctor-clean.{ext}')
+        if os.path.exists(p):
+            current = f'doctor-clean.{ext}'
+            break
+    return render_template('upload_photo.html', current=current)
 
 # ─────────────────────────────────────────────
 #  CSV EXPORT
