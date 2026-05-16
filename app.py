@@ -485,6 +485,12 @@ def submit():
     conditions  = request.form.getlist('conditions')
     age_str     = request.form.get('age', '').strip()
 
+    # ✅ فحص أولي — لو الرقم مسجل مسبقاً وجّهه لصفحة المرضى القدامى
+    if phone and phone.isdigit() and len(phone) >= 10:
+        existing = PatientProfile.query.filter_by(phone=phone).first()
+        if existing:
+            return redirect(f'/returning?phone={phone}&redirect=blocked')
+
     errors = []
     age = 0
     if not name or len(name) < 3:          errors.append("الاسم يجب أن يكون 3 أحرف على الأقل")
@@ -537,6 +543,96 @@ def confirmation():
     token = request.args.get('token', '')
     b = Booking.query.filter_by(cancel_token=token).first()
     return render_template('confirmation.html', booking=b, token=token)
+
+
+# ─────────────────────────────────────────────
+#  RETURNING PATIENT — صفحة المريض القديم
+# ─────────────────────────────────────────────
+@app.route('/returning', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
+def returning_patient():
+    """صفحة خاصة بالمرضى القدامى — يدخل رقمه ويحجز مباشرة"""
+    phone        = request.args.get('phone', '').strip()
+    redirect_msg = request.args.get('redirect', '')
+    patient      = None
+    not_found    = False
+
+    # لو جه من فورم البحث
+    if request.method == 'POST' and 'lookup_phone' in request.form:
+        phone   = request.form.get('lookup_phone', '').strip()
+        patient = PatientProfile.query.filter_by(phone=phone).first()
+        if not patient:
+            not_found = True
+
+    # لو جه من redirect بعد رفض submit
+    if phone and not patient:
+        patient = PatientProfile.query.filter_by(phone=phone).first()
+
+    # معالجة حجز المريض القديم
+    if request.method == 'POST' and 'appointment' in request.form:
+        phone       = request.form.get('phone', '').strip()
+        pain        = request.form.get('pain', '').strip()
+        date_str    = request.form.get('date', '').strip()
+        appointment = request.form.get('appointment', '').strip()
+        conditions  = request.form.getlist('conditions')
+        patient     = PatientProfile.query.filter_by(phone=phone).first()
+
+        if not patient:
+            flash("رقم الهاتف غير مسجل لدينا", 'error')
+            return redirect('/returning')
+
+        errors = []
+        if not pain:                        errors.append("يرجى وصف الشكوى")
+        if not date_str:                    errors.append("التاريخ مطلوب")
+        else:
+            ok, res = valid_date(date_str)
+            if not ok:                      errors.append(res)
+        if not appointment:                 errors.append("يرجى اختيار ميعاد")
+        elif date_str and appointment in booked_slots(date_str):
+                                            errors.append("هذا الموعد محجوز بالفعل")
+        if errors:
+            for e in errors: flash(e, 'error')
+            return redirect(f'/returning?phone={phone}')
+
+        token = secrets.token_urlsafe(32)
+        try:
+            b = Booking(
+                name        = patient.name,
+                age         = patient.age or 0,
+                phone       = patient.phone,
+                pain        = html.escape(pain),
+                conditions  = ', '.join(conditions) or patient.conditions or '',
+                date        = date_str,
+                appointment = appointment,
+                cancel_token= token)
+            db.session.add(b)
+            db.session.flush()
+            upsert_patient(b)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("هذا الموعد محجوز بالفعل، يرجى اختيار وقت آخر.", 'error')
+            return redirect(f'/returning?phone={phone}')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"DB error: {e}")
+            flash("حدث خطأ، يرجى المحاولة مرة أخرى.", 'error')
+            return redirect(f'/returning?phone={phone}')
+
+        notify_booking(patient.name, patient.phone, date_str, appointment)
+        return redirect(f'/confirmation?token={token}')
+
+    # GET — اعرض الصفحة
+    today       = egypt_today().strftime('%Y-%m-%d')
+    free        = [s for s in get_all_slots() if s not in booked_slots(today)]
+    form        = BookingForm()
+    form.appointment.choices = [(t, t) for t in free] if free else [('', 'لا توجد مواعيد')]
+
+    return render_template('returning_patient.html',
+        patient=patient, phone=phone,
+        redirect_msg=redirect_msg, not_found=not_found,
+        available_times=free, selected_date=today,
+        form=form, today=today)
 
 
 # ─────────────────────────────────────────────
