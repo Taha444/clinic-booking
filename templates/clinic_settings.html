@@ -106,8 +106,11 @@
               <label>⏰ بداية العمل</label>
               <div class="time-select">
                 <select name="start_hour">
-                  {% for h in range(1, 13) %}
-                    <option value="{{ h }}" {{ 'selected' if s.start_hour == h }}>{{ h }}</option>
+                  {# القيمة 24h — العرض 12h PM فقط (العيادة تعمل من 8 صباحاً لـ 11 مساءً) #}
+                  {% set am_hours = [(8,'8:00 AM'),(9,'9:00 AM'),(10,'10:00 AM'),(11,'11:00 AM')] %}
+                  {% set pm_hours = [(12,'12:00 PM'),(13,'1:00 PM'),(14,'2:00 PM'),(15,'3:00 PM'),(16,'4:00 PM'),(17,'5:00 PM'),(18,'6:00 PM'),(19,'7:00 PM'),(20,'8:00 PM'),(21,'9:00 PM'),(22,'10:00 PM')] %}
+                  {% for val, label in am_hours + pm_hours %}
+                    <option value="{{ val }}" {{ 'selected' if s.start_hour == val }}>{{ label }}</option>
                   {% endfor %}
                 </select>
                 <select name="start_minute">
@@ -120,8 +123,10 @@
               <label>⏱ نهاية العمل</label>
               <div class="time-select">
                 <select name="end_hour">
-                  {% for h in range(1, 25) %}
-                    <option value="{{ h }}" {{ 'selected' if s.end_hour == h }}>{{ h if h <= 12 else h-12 }} {{ 'PM' if h >= 12 else 'AM' }}</option>
+                  {% set am_hours = [(8,'8:00 AM'),(9,'9:00 AM'),(10,'10:00 AM'),(11,'11:00 AM')] %}
+                  {% set pm_hours = [(12,'12:00 PM'),(13,'1:00 PM'),(14,'2:00 PM'),(15,'3:00 PM'),(16,'4:00 PM'),(17,'5:00 PM'),(18,'6:00 PM'),(19,'7:00 PM'),(20,'8:00 PM'),(21,'9:00 PM'),(22,'10:00 PM'),(23,'11:00 PM')] %}
+                  {% for val, label in am_hours + pm_hours %}
+                    <option value="{{ val }}" {{ 'selected' if s.end_hour == val }}>{{ label }}</option>
                   {% endfor %}
                 </select>
               </div>
