@@ -289,6 +289,38 @@ def booked_slots(date):
             ).all()]
 
 
+def slot_to_minutes(slot_str):
+    """حوّل slot string لـ minutes من منتصف الليل — مثال: '3:00 PM' → 900"""
+    try:
+        time_part, ampm = slot_str.strip().rsplit(' ', 1)
+        h, m = map(int, time_part.split(':'))
+        if ampm.upper() == 'PM' and h != 12:
+            h += 12
+        elif ampm.upper() == 'AM' and h == 12:
+            h = 0
+        return h * 60 + m
+    except:
+        return 9999
+
+
+def filter_past_slots(slots, date_str):
+    """شيل المواعيد اللي فاتت لو التاريخ هو اليوم"""
+    today = egypt_today()
+    try:
+        selected = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except:
+        return slots
+
+    if selected != today:
+        return slots  # لو مش اليوم — كل المواعيد متاحة
+
+    # احسب الوقت الحالي بتوقيت القاهرة بالدقائق
+    now_cairo   = datetime.now(CAIRO)
+    now_minutes = now_cairo.hour * 60 + now_cairo.minute + 30  # buffer 30 دقيقة
+
+    return [s for s in slots if slot_to_minutes(s) > now_minutes]
+
+
 def upsert_patient(booking):
     p = PatientProfile.query.filter_by(phone=booking.phone).first()
     if p:
@@ -496,7 +528,7 @@ def index():
     if not ok:
         date = today
 
-    free  = [s for s in get_all_slots() if s not in booked_slots(date)]
+    free  = filter_past_slots([s for s in get_all_slots() if s not in booked_slots(date)], date)
     form  = BookingForm()
     form.appointment.choices = [(t, t) for t in free] if free else [('', 'لا توجد مواعيد')]
     form.date.data = datetime.strptime(date, '%Y-%m-%d')
@@ -512,7 +544,7 @@ def available_slots():
     ok, result = valid_date(date)
     if not ok:
         return jsonify({'available_times': [], 'error': result})
-    return jsonify({'available_times': [s for s in get_all_slots() if s not in booked_slots(date)]})
+    return jsonify({'available_times': filter_past_slots([s for s in get_all_slots() if s not in booked_slots(date)], date)})
 
 
 @app.route('/submit', methods=['POST'])
@@ -548,6 +580,8 @@ def submit():
     if not appointment:                    errors.append("يرجى اختيار ميعاد")
     elif date_str and appointment in booked_slots(date_str):
                                            errors.append("هذا الموعد محجوز بالفعل")
+    elif date_str and not filter_past_slots([appointment], date_str):
+                                           errors.append("هذا الميعاد قد مضى، يرجى اختيار ميعاد آخر")
     if errors:
         for e in errors: flash(e, 'error')
         return redirect('/')
@@ -631,6 +665,8 @@ def returning_patient():
         if not appointment:                 errors.append("يرجى اختيار ميعاد")
         elif date_str and appointment in booked_slots(date_str):
                                             errors.append("هذا الموعد محجوز بالفعل")
+        elif date_str and not filter_past_slots([appointment], date_str):
+                                            errors.append("هذا الميعاد قد مضى، يرجى اختيار ميعاد آخر")
         if errors:
             for e in errors: flash(e, 'error')
             return redirect(f'/returning?phone={phone}')
@@ -665,7 +701,7 @@ def returning_patient():
 
     # GET — اعرض الصفحة
     today       = egypt_today().strftime('%Y-%m-%d')
-    free        = [s for s in get_all_slots() if s not in booked_slots(today)]
+    free        = filter_past_slots([s for s in get_all_slots() if s not in booked_slots(today)], today)
     form        = BookingForm()
     form.appointment.choices = [(t, t) for t in free] if free else [('', 'لا توجد مواعيد')]
 
