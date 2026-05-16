@@ -117,9 +117,9 @@ class ClinicSettings(db.Model):
     """إعدادات العيادة — صف واحد دائماً"""
     id            = db.Column(db.Integer, primary_key=True)
     # أوقات العمل
-    start_hour    = db.Column(db.Integer, default=3)    # 3 PM
+    start_hour    = db.Column(db.Integer, default=15)   # 3 PM = 15 في 24h format
     start_minute  = db.Column(db.String(2), default='00')
-    end_hour      = db.Column(db.Integer, default=11)   # 11 PM
+    end_hour      = db.Column(db.Integer, default=23)   # 11 PM = 23 في 24h format
     slot_duration = db.Column(db.Integer, default=30)   # بالدقائق
     # أيام العمل (0=الأحد ... 6=السبت) — مخزنة كـ JSON string
     work_days     = db.Column(db.String(20), default='0,1,2,3,5,6')  # بدون الجمعة
@@ -138,6 +138,14 @@ class AdminCredentials(db.Model):
 
 with app.app_context():
     db.create_all()
+    # تصحيح الإعدادات القديمة لو start_hour < 8 (يعني مخزّن بالطريقة القديمة)
+    old_settings = ClinicSettings.query.first()
+    if old_settings and old_settings.start_hour < 8:
+        old_settings.start_hour = old_settings.start_hour + 12  # 3 → 15
+        if old_settings.end_hour < 12:
+            old_settings.end_hour = old_settings.end_hour + 12  # 11 → 23
+        db.session.commit()
+
     # seed الأدمن من الـ env variables لو DB فاضي
     if not AdminCredentials.query.first():
         env_user = os.getenv("ADMIN_USERNAME", "admin")
@@ -168,22 +176,32 @@ def get_settings():
     return s
 
 
+def hour24_to_12(hour24):
+    """تحويل 24h لـ 12h format — مثال: 15 → '3:00 PM'"""
+    ampm = 'AM' if hour24 < 12 else 'PM'
+    h12  = hour24 % 12
+    if h12 == 0:
+        h12 = 12
+    return h12, ampm
+
+
 def get_all_slots():
-    """المواعيد المتاحة حسب الإعدادات"""
-    s   = get_settings()
-    slots = []
-    hour  = s.start_hour
+    """المواعيد المتاحة حسب الإعدادات — يستخدم 24h داخلياً"""
+    s      = get_settings()
+    slots  = []
+    # start_hour مخزّن كـ 24h (مثلاً 15 = 3 PM)
+    hour   = s.start_hour
     minute = int(s.start_minute)
+    end_h  = s.end_hour
+
     while True:
-        # حوّل لـ 12h format
-        h12  = hour if hour <= 12 else hour - 12
-        ampm = 'AM' if hour < 12 else 'PM'
+        h12, ampm = hour24_to_12(hour)
         slots.append(f"{h12}:{minute:02d} {ampm}")
         minute += s.slot_duration
         if minute >= 60:
             hour  += minute // 60
             minute = minute % 60
-        if hour > s.end_hour or (hour == s.end_hour and minute > 0):
+        if hour > end_h or (hour == end_h and minute > 0):
             break
     return slots
 
@@ -949,9 +967,9 @@ def clinic_settings():
         action = request.form.get('action')
 
         if action == 'hours':
-            s.start_hour    = int(request.form.get('start_hour', 3))
+            s.start_hour    = int(request.form.get('start_hour', 15))  # 24h
             s.start_minute  = request.form.get('start_minute', '00')
-            s.end_hour      = int(request.form.get('end_hour', 11))
+            s.end_hour      = int(request.form.get('end_hour', 23))    # 24h
             s.slot_duration = int(request.form.get('slot_duration', 30))
             db.session.commit()
             flash('✅ تم حفظ أوقات العمل', 'success')
