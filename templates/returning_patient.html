@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مرحباً بعودتك — مركز الهادي</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .returning-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;}
+    .returning-card{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);overflow:hidden;width:100%;max-width:560px;border:1.5px solid rgba(14,165,160,.12);animation:slideUp .5s cubic-bezier(.16,1,.3,1) both;}
+
+    /* هيدر الترحيب */
+    .welcome-header{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 50%,var(--secondary) 100%);padding:2rem;text-align:center;position:relative;overflow:hidden;}
+    .welcome-header::before{content:'💚';position:absolute;font-size:120px;opacity:.06;top:-20px;right:-20px;}
+    .welcome-icon{font-size:2.8rem;margin-bottom:.6rem;animation:pulse-success 2s ease infinite;}
+    .welcome-title{font-family:var(--font-display);font-size:1.5rem;font-weight:900;color:white;margin-bottom:.3rem;}
+    .welcome-sub{color:rgba(255,255,255,.8);font-size:.9rem;}
+
+    /* بيانات المريض */
+    .patient-card{background:var(--primary-light);border:1px solid rgba(14,165,160,.2);border-radius:var(--radius-lg);padding:1.1rem 1.25rem;margin:1.25rem 1.5rem;}
+    .patient-row{display:flex;align-items:center;gap:10px;margin-bottom:.5rem;font-size:.9rem;}
+    .patient-row:last-child{margin-bottom:0;}
+    .patient-row .lbl{color:var(--text-secondary);font-size:.8rem;width:90px;flex-shrink:0;}
+    .patient-row .val{color:var(--text-primary);font-weight:600;}
+    .cond-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:.4rem;}
+    .cond-tag{background:white;border:1px solid rgba(14,165,160,.25);border-radius:99px;padding:2px 10px;font-size:.75rem;color:var(--primary-dark);font-weight:500;}
+
+    /* فورم البحث */
+    .search-section{padding:1.5rem;}
+    .lookup-form{display:flex;gap:8px;}
+    .lookup-input{flex:1;padding:.75rem 1rem;border:1.5px solid var(--border);border-radius:var(--radius-md);font-family:var(--font-body);font-size:.95rem;outline:none;background:var(--surface-2);}
+    .lookup-input:focus{border-color:var(--primary);}
+    .lookup-btn{padding:.75rem 1.25rem;background:var(--primary);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-body);font-size:.9rem;cursor:pointer;font-weight:600;white-space:nowrap;transition:background .2s;}
+    .lookup-btn:hover{background:var(--primary-dark);}
+
+    /* تحذير الرفض */
+    .blocked-banner{background:linear-gradient(135deg,#fef3c7,#fffbeb);border:1.5px solid #fbbf24;border-radius:var(--radius-lg);padding:1rem 1.25rem;margin:0 1.5rem 1.25rem;display:flex;align-items:flex-start;gap:10px;}
+    .blocked-icon{font-size:1.5rem;flex-shrink:0;}
+    .blocked-text .t{font-weight:700;color:#92400e;margin-bottom:.3rem;font-size:.95rem;}
+    .blocked-text .d{color:#78350f;font-size:.85rem;line-height:1.5;}
+
+    /* فورم الحجز */
+    .booking-section{padding:0 1.5rem 1.5rem;}
+    .section-title{font-family:var(--font-display);font-weight:700;font-size:1rem;color:var(--text-primary);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
+
+    /* وقت السلوتس */
+    .time-slots-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:.5rem;}
+    .time-slot{padding:.5rem .3rem;background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem;color:var(--text-secondary);cursor:pointer;transition:all .2s;text-align:center;font-weight:500;}
+    .time-slot:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light);}
+    .time-slot.selected{background:var(--primary);border-color:var(--primary);color:white;box-shadow:0 2px 8px rgba(14,165,160,.4);}
+
+    /* not found */
+    .not-found-box{background:var(--danger-light);border:1px solid #fca5a5;border-radius:var(--radius-md);padding:.9rem 1rem;margin:0 1.5rem 1rem;font-size:.9rem;color:var(--danger);display:flex;align-items:center;gap:8px;}
+
+    .divider{border:none;border-top:1px solid var(--border);margin:0;}
+    .new-patient-link{text-align:center;padding:1rem;font-size:.88rem;color:var(--text-secondary);}
+    .new-patient-link a{color:var(--primary);font-weight:600;text-decoration:none;}
+    .new-patient-link a:hover{text-decoration:underline;}
+
+    @keyframes pulse-success{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+  </style>
+</head>
+<body>
+<div class="returning-page">
+  <div class="returning-card">
+
+    {% if redirect_msg == 'blocked' and patient %}
+      <!-- ══ جاء من submit وتم رفضه ══ -->
+      <div class="welcome-header">
+        <div class="welcome-icon">👋</div>
+        <div class="welcome-title">أهلاً بعودتك، {{ patient.name.split()[0] }}!</div>
+        <div class="welcome-sub">رقمك مسجل لدينا — يسعدنا رؤيتك مجدداً 💚</div>
+      </div>
+
+      <div class="blocked-banner">
+        <div class="blocked-icon">⚠️</div>
+        <div class="blocked-text">
+          <div class="t">رقم هاتفك مسجل في نظامنا كمريض سابق</div>
+          <div class="d">لا يمكن الحجز من صفحة المرضى الجدد. يرجى حجز موعدك من هنا مباشرةً 👇</div>
+        </div>
+      </div>
+
+    {% elif patient %}
+      <!-- ══ مريض موجود — ترحيب عادي ══ -->
+      <div class="welcome-header">
+        <div class="welcome-icon">🌟</div>
+        <div class="welcome-title">أهلاً بعودتك، {{ patient.name.split()[0] }}!</div>
+        <div class="welcome-sub">مركز الهادي يرحب بك دائماً 💚</div>
+      </div>
+
+    {% else %}
+      <!-- ══ هيدر بدون مريض ══ -->
+      <div class="welcome-header">
+        <div class="welcome-icon">🔍</div>
+        <div class="welcome-title">حجز المرضى السابقين</div>
+        <div class="welcome-sub">أدخل رقم هاتفك للتعرف عليك</div>
+      </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="flash-msg {{ cat }}" style="margin:1rem 1.5rem 0;">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if patient %}
+      <!-- ══ بيانات المريض ══ -->
+      <div class="patient-card">
+        <div class="patient-row">
+          <span class="lbl">👤 الاسم</span>
+          <span class="val">{{ patient.name }}</span>
+        </div>
+        <div class="patient-row">
+          <span class="lbl">📱 الهاتف</span>
+          <span class="val" style="direction:ltr;">{{ patient.phone }}</span>
+        </div>
+        <div class="patient-row">
+          <span class="lbl">📅 آخر زيارة</span>
+          <span class="val">{{ patient.last_visit or '—' }}</span>
+        </div>
+        <div class="patient-row">
+          <span class="lbl">🏥 عدد الزيارات</span>
+          <span class="val">{{ patient.total_visits }} زيارة</span>
+        </div>
+        {% if patient.conditions %}
+          <div style="margin-top:.6rem;">
+            <div class="cond-tags">
+              {% for c in patient.conditions.split(',') %}
+                {% if c.strip() %}
+                  <span class="cond-tag">{{ c.strip() }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- ══ فورم الحجز السريع ══ -->
+      <div class="booking-section">
+        <div class="section-title">📅 احجز موعدك الجديد</div>
+        <form method="POST" onsubmit="return validateBooking()">
+          {{ form.hidden_tag() }}
+          <input type="hidden" name="phone" value="{{ patient.phone }}">
+          <input type="hidden" name="appointment" id="appointment-val">
+
+          <!-- الشكوى -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">🤕</span>
+              بماذا تشعر هذه المرة؟
+            </label>
+            <input class="field-input" type="text" name="pain" required
+                   placeholder="صف شكواك باختصار..."
+                   pattern="[^<>'&quot;]+"
+                   value="{{ request.form.pain or '' }}">
+          </div>
+
+          <!-- الحالات -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">📋</span>
+              الحالات الصحية (اختياري)
+            </label>
+            <div class="conditions-grid">
+              <div class="condition-item">
+                <input type="checkbox" id="r-cond-diabetes" name="conditions" value="Diabetes"
+                       {{ 'checked' if patient.conditions and 'Diabetes' in patient.conditions }}>
+                <label class="condition-label" for="r-cond-diabetes">
+                  <span class="condition-icon">🩸</span>السكر
+                </label>
+              </div>
+              <div class="condition-item">
+                <input type="checkbox" id="r-cond-bp" name="conditions" value="High Blood Pressure"
+                       {{ 'checked' if patient.conditions and 'High Blood Pressure' in patient.conditions }}>
+                <label class="condition-label" for="r-cond-bp">
+                  <span class="condition-icon">❤️</span>الضغط
+                </label>
+              </div>
+              <div class="condition-item">
+                <input type="checkbox" id="r-cond-injury" name="conditions" value="Old Injury"
+                       {{ 'checked' if patient.conditions and 'Old Injury' in patient.conditions }}>
+                <label class="condition-label" for="r-cond-injury">
+                  <span class="condition-icon">🦴</span>إصابة قديمة
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- التاريخ -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">📅</span>
+              اختر تاريخ الحجز
+            </label>
+            <input class="field-input" type="date" id="r-date-input" name="date"
+                   required value="{{ selected_date }}" oninput="loadSlots()">
+          </div>
+
+          <!-- الميعاد -->
+          <div class="field-group">
+            <label class="field-label">
+              <span class="label-icon">🕐</span>
+              اختر الميعاد
+            </label>
+            <div class="time-slots-grid" id="r-time-slots">
+              {% for time in available_times %}
+                <div class="time-slot" onclick="selectSlot(this, '{{ time }}')">{{ time }}</div>
+              {% else %}
+                <div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:.75rem;">
+                  لا توجد مواعيد متاحة
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit" id="r-submit-btn">
+            ✅ تأكيد الحجز
+          </button>
+        </form>
+      </div>
+
+    {% elif not_found %}
+      <!-- ══ رقم غير مسجل ══ -->
+      <div class="not-found-box">
+        ❌ رقم الهاتف غير مسجل لدينا — يرجى الحجز من صفحة المرضى الجدد
+      </div>
+      <div class="search-section" style="padding-top:0;">
+        <form method="POST">
+          {{ form.hidden_tag() }}
+          <div class="lookup-form">
+            <input class="lookup-input" type="tel" name="lookup_phone"
+                   placeholder="01xxxxxxxxx" pattern="\d{10,}" value="{{ phone }}">
+            <button type="submit" class="lookup-btn">🔍 بحث</button>
+          </div>
+        </form>
+      </div>
+
+    {% else %}
+      <!-- ══ فورم البحث ══ -->
+      <div class="search-section">
+        <div style="font-size:.9rem;color:var(--text-secondary);margin-bottom:1rem;line-height:1.6;">
+          أدخل رقم هاتفك وسنجلب بياناتك فوراً ونوفّر لك تجربة حجز سريعة ومخصّصة.
+        </div>
+        <form method="POST">
+          {{ form.hidden_tag() }}
+          <div class="lookup-form">
+            <input class="lookup-input" type="tel" name="lookup_phone"
+                   placeholder="01xxxxxxxxx" pattern="\d{10,}"
+                   autofocus value="{{ phone }}">
+            <button type="submit" class="lookup-btn">🔍 ابحث عن ملفك</button>
+          </div>
+        </form>
+      </div>
+    {% endif %}
+
+    <hr class="divider">
+    <div class="new-patient-link">
+      مريض جديد؟ <a href="/">احجز من هنا</a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // تأكد من min date
+  document.addEventListener('DOMContentLoaded', () => {
+    const d = document.getElementById('r-date-input');
+    if (d) {
+      const today = new Date().toLocaleDateString('en-CA', {timeZone:'Africa/Cairo'});
+      d.setAttribute('min', today);
+    }
+  });
+
+  function selectSlot(el, time) {
+    document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('appointment-val').value = time;
+  }
+
+  async function loadSlots() {
+    const date = document.getElementById('r-date-input').value;
+    if (!date) return;
+
+    // فحص الجمعة
+    const d = new Date(date + 'T12:00:00');
+    if (d.getDay() === 5) {
+      document.getElementById('r-time-slots').innerHTML =
+        '<div style="grid-column:1/-1;text-align:center;color:var(--danger);padding:.75rem;">⛔ العيادة مغلقة يوم الجمعة</div>';
+      document.getElementById('appointment-val').value = '';
+      return;
+    }
+
+    const grid = document.getElementById('r-time-slots');
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:.75rem;">⏳ جاري التحميل...</div>';
+
+    try {
+      const res  = await fetch(`/available_slots?date=${date}`);
+      const data = await res.json();
+      document.getElementById('appointment-val').value = '';
+
+      if (!data.available_times || data.available_times.length === 0) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:.75rem;">لا توجد مواعيد متاحة</div>';
+        return;
+      }
+      grid.innerHTML = data.available_times.map(t =>
+        `<div class="time-slot" onclick="selectSlot(this,'${t}')">${t}</div>`
+      ).join('');
+    } catch {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger);padding:.75rem;">حدث خطأ، حاول مرة أخرى</div>';
+    }
+  }
+
+  function validateBooking() {
+    if (!document.getElementById('appointment-val').value) {
+      alert('يرجى اختيار ميعاد أولاً');
+      return false;
+    }
+    const btn = document.getElementById('r-submit-btn');
+    if (btn) { btn.textContent = '⏳ جاري الإرسال...'; btn.disabled = true; }
+    return true;
+  }
+</script>
+</body>
+</html>
