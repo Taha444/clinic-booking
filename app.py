@@ -42,8 +42,17 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024   # 5MB max
 ALLOWED_EXT = {'png', 'jpg', 'jpeg', 'webp'}
 
 db     = SQLAlchemy(app)
-csrf   = CSRFProtect(app)
-limiter = Limiter(get_remote_address, app=app)
+csrf = CSRFProtect(app)
+
+# Rate Limiter — يستخدم الـ DB لو PostgreSQL متاح، وإلا RAM
+_redis_url = os.getenv('REDIS_URL')
+_limiter_storage = _redis_url if _redis_url else "memory://"
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=_limiter_storage,
+    default_limits=["500 per hour"]
+)
 
 CAIRO = pytz.timezone('Africa/Cairo')
 
